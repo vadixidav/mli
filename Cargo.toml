@@ -1,0 +1,7 @@
+[package]
+name = "gpi"
+version = "0.0.1"
+authors = ["Geordon Worley <vadixidav@gmail.com>"]
+
+[dependencies]
+rand = "*"
