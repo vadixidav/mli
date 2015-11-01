@@ -16,9 +16,9 @@ impl<Ins> Clone for Mep<Ins>
 
 impl<Ins> Mep<Ins> {
     //Generates a new Mep with a particular size and takes a closure to generate random instructions
-    pub fn new<F>(total_instructions: usize, mut random_instruction_generator: F) -> Mep<Ins>
-        where F: FnMut() -> Ins {
-        Mep{instructions: (0..total_instructions).map(|_| random_instruction_generator()).collect()}
+    pub fn new<I>(random_instruction_iter: I) -> Mep<Ins>
+        where I: Iterator<Item=Ins> {
+        Mep{instructions: random_instruction_iter.collect()}
     }
 
     /*
