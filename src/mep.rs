@@ -42,8 +42,6 @@ impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: 
             .chain(Some(total_instructions))
             //Sort them by value into BTree, which removes duplicates and orders them
             .fold(BTreeSet::new(), |mut set, i| {set.insert(i); set})
-            //Add total_instructions at the end so we can generate a range with it
-            //.insert(total_instructions)
             //Iterate over the sorted values
             .iter()
             //Turn every copy of two, prepending a 0, into a range
@@ -79,8 +77,8 @@ impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: 
     beneficial to operate at lower mutation rates. Setting the default mutation rate for species properly, or allowing
     it to adapt as the simulation continues, permits species to survive more frequently that are randomly generated.
 
-    Likewise, the functions for random instruction generation and mutation can be adapted as the simulation continues
-    to optimize the generation of more desireable random mutations and generations. For instance, instructions that
+    Likewise, the functions for random instruction mutation can be adapted as the simulation continues
+    to optimize the generation of more desireable random mutations. For instance, instructions that
     occur more frequently should be generated randomly more frequently.
     */
     fn mutate<F>(&mut self, rng: &mut R, mut mutator: F) where F: FnMut(&mut Ins) {
