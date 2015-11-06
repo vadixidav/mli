@@ -89,12 +89,8 @@ impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: 
             //Make it possibly go up or down by 1
             match rng.gen_range(0, 2) {
                 0 => self.unit_mutate_size += 1,
-                1 => self.unit_mutate_size -= 1,
+                1 => if self.unit_mutate_size > 1 {self.unit_mutate_size -= 1},
                 _ => unreachable!(),
-            }
-            //It isnt allowed to be 0
-            if self.unit_mutate_size == 0 {
-                self.unit_mutate_size = 1;
             }
         }
         //Mutate crossover_points
@@ -102,12 +98,8 @@ impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: 
             //Make it possibly go up or down by 1
             match rng.gen_range(0, 2) {
                 0 => self.crossover_points += 1,
-                1 => self.crossover_points -= 1,
+                1 => if self.crossover_points > 1 {self.crossover_points -= 1},
                 _ => unreachable!(),
-            }
-            //It isnt allowed to be 0
-            if self.crossover_points == 0 {
-                self.crossover_points = 1;
             }
         }
 
@@ -145,9 +137,8 @@ mod tests {
     #[test]
     fn mep_crossover() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
-        let len = 10;
         let (a, b) = {
-            let mut clos = || Mep::new(3, 3, rng.gen_iter::<u32>().map(|x| x % 10).take(len));
+            let mut clos = || Mep::new(3, 3, rng.gen_iter::<u32>().map(|x| x % 10).take(10));
             (clos(), clos())
         };
         let old_rngs: Vec<_> = rng.clone().gen_iter::<u32>().take(5).collect();
@@ -156,7 +147,7 @@ mod tests {
         assert!(rng.clone().gen_iter::<u32>().take(5).collect::<Vec<_>>() != old_rngs);
 
         c.mutate(&mut rng, |ins: &mut u32| *ins = 2);
-        //c.call(|x: &Vec<u32>| println!("{}", x.len()));
+        //c.call(|x: &Vec<u32>| panic!());
 
         assert_eq!(c.instructions, [0, 7, 5, 4, 2, 8, 5, 6, 0, 2]);
     }
