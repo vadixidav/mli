@@ -138,7 +138,7 @@ mod tests {
     fn mep_crossover() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
         let (a, b) = {
-            let mut clos = || <Mep<u32> as GeneticAlgorithm<Isaac64Rng, u32, Vec<u32>>>::new(3, 3, rng.gen_iter::<u32>().map(|x| x % 10).take(10));
+            let mut clos = || Mep::new(3, 3, rng.gen_iter::<u32>().map(|x| x % 10).take(10));
             (clos(), clos())
         };
         let old_rngs: Vec<_> = rng.clone().gen_iter::<u32>().take(5).collect();
@@ -147,7 +147,7 @@ mod tests {
         assert!(rng.clone().gen_iter::<u32>().take(5).collect::<Vec<_>>() != old_rngs);
 
         c.mutate(&mut rng, |ins: &mut u32| *ins = 2);
-        //c.call(|x: &Vec<u32>| panic!());
+        c.call(|x: &Vec<u32>| panic!());
 
         assert_eq!(c.instructions, [0, 7, 5, 4, 2, 8, 5, 6, 0, 2]);
     }
