@@ -29,8 +29,8 @@ impl<Ins> Mep<Ins> {
     }
 }
 
-impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: Clone {
-    fn mate(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> {
+impl<Ins> GeneticAlgorithm<Ins, Vec<Ins>> for Mep<Ins> where Ins: Clone {
+    fn mate<R>(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> where R: Rng {
         //Get the smallest of the two lengths
         let total_instructions = cmp::min(parents.0.instructions.len(), parents.1.instructions.len());
         Mep{instructions:
@@ -81,7 +81,7 @@ impl<R, Ins> GeneticAlgorithm<R, Ins, Vec<Ins>> for Mep<Ins> where R: Rng, Ins: 
     to optimize the generation of more desireable random mutations. For instance, instructions that
     occur more frequently should be generated randomly more frequently.
     */
-    fn mutate<F>(&mut self, rng: &mut R, mut mutator: F) where F: FnMut(&mut Ins) {
+    fn mutate<F, R>(&mut self, rng: &mut R, mut mutator: F) where F: FnMut(&mut Ins), R: Rng {
         //Mutate unit_mutate_size
         if rng.gen_range(0, self.unit_mutate_size) == 0 {
             //Make it possibly go up or down by 1
@@ -145,7 +145,7 @@ mod tests {
         assert!(rng.clone().gen_iter::<u32>().take(5).collect::<Vec<_>>() != old_rngs);
 
         c.mutate(&mut rng, |ins: &mut u32| *ins = 2);
-        c.call(|x: &Vec<u32>| panic!());
+        c.call(|_: &Vec<u32>| {});
 
         assert_eq!(c.instructions, [0, 7, 5, 4, 2, 8, 5, 6, 0, 2]);
     }
