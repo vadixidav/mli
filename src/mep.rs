@@ -3,7 +3,7 @@ use std::cmp;
 use rand::Rng;
 use std::ops::Range;
 use std::iter::Rev;
-use super::{GeneticAlgorithm, FunctionalAlgorithm};
+use super::GeneticAlgorithm;
 
 /*
 Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
@@ -29,11 +29,13 @@ impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
 /*
 A multi-expression program represented using a series of operations that can reuse results of previous operations.
 */
-pub struct Mep<Ins> {
+pub struct Mep<Ins, F1, F2> {
     program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
     crossover_points: usize,
     inputs: usize,
+    mutator: F1,
+    processor: F2,
 }
 
 struct ResultIterator<'a, 'b, Ins: 'a, Param: 'b, F> where F: Fn(&Ins, Param, Param) -> Param {
@@ -44,22 +46,30 @@ struct ResultIterator<'a, 'b, Ins: 'a, Param: 'b, F> where F: Fn(&Ins, Param, Pa
     processor: F,
 }
 
-impl<Ins> Clone for Mep<Ins>
-    where Ins: Clone {
+impl<Ins, F1, F2> Clone for Mep<Ins, F1, F2>
+    where Ins: Clone
+{
     fn clone(&self) -> Self {
-        Mep{program: self.program.clone(), unit_mutate_size: self.unit_mutate_size,
-            crossover_points: self.crossover_points, inputs: self.inputs}
+        Mep{
+            program: self.program.clone(),
+            unit_mutate_size: self.unit_mutate_size,
+            crossover_points: self.crossover_points,
+            inputs: self.inputs,
+            mutator: self.mutator,
+            processor: self.processor
+        }
     }
 }
 
-impl<Ins> Mep<Ins> {
+impl<Ins, F1, F2> Mep<Ins, F1, F2> {
     /*
     Generates a new Mep with a particular size and takes a closure to generate random instructions.
     Takes an RNG as well to generate random internal data for each instruction.
     */
-    pub fn new<I, R>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut R, instruction_iter: I)
-        -> Mep<Ins> where I: Iterator<Item=Ins>, R: Rng {
-        Mep{program: instruction_iter.enumerate()
+    pub fn new<I, R>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut R, instruction_iter: I,
+        mutator: F1, processor: F2) -> Mep<Ins> where I: Iterator<Item=Ins>, R: Rng {
+        Mep{
+            program: instruction_iter.enumerate()
                 .map(|(index, ins)| Opcode{
                         instruction: ins,
                         first: rng.gen_range(0, index + inputs),
@@ -68,15 +78,17 @@ impl<Ins> Mep<Ins> {
                 ).collect(),
             unit_mutate_size: unit_mutate_size,
             crossover_points: crossover_points,
-            inputs: inputs
+            inputs: inputs,
+            mutator: mutator,
+            processor: processor,
         }
     }
 }
 
-impl<Ins> GeneticAlgorithm<Ins> for Mep<Ins>
-    where Ins: Clone
+impl<'a, 'b, Ins: 'a, Param: 'b, R> GeneticAlgorithm<R, Param, Param> for Mep<Ins>
+    where Ins: Clone, R: Rng
 {
-    fn mate<R>(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> where R: Rng {
+    fn mate(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> {
         //Each Mep must have the same amount of inputs
         //TODO: Once Rust implements generic values, this can be made explicit and is not needed
         assert!(parents.0.inputs == parents.1.inputs);
@@ -116,7 +128,9 @@ impl<Ins> GeneticAlgorithm<Ins> for Mep<Ins>
                 rng.gen_range(parents.1.crossover_points, parents.0.crossover_points + 1)
             },
 
-            inputs: parents.0.inputs
+            inputs: parents.0.inputs,
+            mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator,
+            processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor,
         }
     }
 
@@ -134,7 +148,7 @@ impl<Ins> GeneticAlgorithm<Ins> for Mep<Ins>
     to optimize the generation of more desireable random mutations. For instance, instructions that
     occur more frequently should be generated randomly more frequently.
     */
-    fn mutate<F, R>(&mut self, rng: &mut R, mut mutator: F) where F: FnMut(&mut Ins), R: Rng {
+    fn mutate(&mut self, rng: &mut R) {
         //Mutate unit_mutate_size
         if rng.gen_range(0, self.unit_mutate_size) == 0 {
             //Make it possibly go up or down by 1
@@ -171,19 +185,8 @@ impl<Ins> GeneticAlgorithm<Ins> for Mep<Ins>
             }
         }
     }
-}
 
-/*
-FunctionalAlgorithm is implemented for Mep where all inputs, intermediary values, and outputs are of the same type only.
-This constraint is due to the fact that every single call of the processor closure can consume input values or
-results from previous calls of the processor closure. Also, the output is also determined by calls to the processor
-closure. Due to this restriction, all of these types must be the same for Mep, thus FunctionalAlgorithm is only
-implemented then.
-*/
-impl<'a, 'b, Ins, Param, F> FunctionalAlgorithm<Ins, Param, Param, Param, ResultIterator<'a, 'b, Ins, Param, F>, F> for Mep<Ins>
-    where F: Fn(&Ins, Param, Param) -> Param {
-    fn execute(&self, inputs: &[Param],
-        outputs: usize, processor: F) -> ResultIterator<'a, 'b, Ins, Param, F> {
+    fn compute(&self, inputs: &[Param], outputs: usize) -> ResultIterator<'a, 'b, Ins, Param, F2> {
         //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
         assert!(outputs <= self.program.len());
         ResultIterator{
@@ -191,7 +194,7 @@ impl<'a, 'b, Ins, Param, F> FunctionalAlgorithm<Ins, Param, Param, Param, Result
             buff: vec![None; self.program.len()],
             solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
             inputs: inputs,
-            processor: processor,
+            processor: self.processor,
         }
     }
 }

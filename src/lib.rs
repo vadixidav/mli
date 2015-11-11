@@ -3,21 +3,25 @@ pub mod mep;
 pub use mep::Mep;
 use rand::Rng;
 
+pub trait Learning<R, In, Out> where R: Rng {
+    //The mutate function performs a unit mutation. A single, several, or no actual mutations may occour.
+    fn mutate(&mut self, rng: &mut R);
+    //Push data through the algorithm to get outputs
+    fn compute(&self, inputs: &[In], outputs: usize) -> Box<Iterator<Item=Out>>;
+    //TODO: Train function
+}
+
 /*
-GeneticAlgorithm is a trait that allows genetic manipulation. Genetic algorithms require duplication, which is why
-there is a requirement for Clone. We
+Genetic is a trait that allows genetic manipulation. Genetic algorithms require duplication, which is why
+there is a requirement for Clone. This is a more specific type of learning algorithm, so Learning is required.
 
 It is parameterized with an Rng (R) type so that the algorithms can extract random data in the interface.
 
 Note: This API is highly likely to change until version 1.0.
 */
-pub trait GeneticAlgorithm<R, In, Out> : Clone where R: Rng {
+pub trait Genetic<R, In, Out> : Clone + Learning<R, In, Out> where R: Rng {
     //The mate function takes a tuple of two parent references and returns a new child; this can be non-deterministic.
     fn mate(parents: (&Self, &Self), rng: &mut R) -> Self;
-    //The mutate function performs a unit mutation. A single, several, or no actual mutations may occour.
-    fn mutate(&mut self, rng: &mut R);
-    //Push data through the algorithm to get outputs
-    fn compute(&self, inputs: &[In], outputs: outputs: usize) -> Box<Iterator<Item=Out>>;
 }
 /*
 /*
