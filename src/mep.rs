@@ -1,39 +1,88 @@
 use std::collections::BTreeSet;
 use std::cmp;
 use rand::Rng;
-use super::GeneticAlgorithm;
+use std::ops::Range;
+use std::iter::Rev;
+use super::{GeneticAlgorithm, FunctionalAlgorithm};
+
+/*
+Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
+previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
+to the program, which sequentially preceed the internal instructions.
+*/
+struct Opcode<Ins> {
+    instruction: Ins,
+    first: usize,
+    second: usize,
+}
+
+impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
+    fn clone(&self) -> Self {
+        Opcode{
+            instruction: self.instruction.clone(),
+            first: self.first,
+            second: self.second,
+        }
+    }
+}
 
 /*
 A multi-expression program represented using a series of operations that can reuse results of previous operations.
 */
 pub struct Mep<Ins> {
-    instructions: Vec<Ins>,
+    program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
     crossover_points: usize,
+    inputs: usize,
+}
+
+struct ResultIterator<'a, 'b, Ins: 'a, Param: 'b, F> where F: Fn(&Ins, Param, Param) -> Param {
+    mep: &'a Mep<Ins>,
+    buff: Vec<Option<Param>>,
+    solve_iter: Rev<usize>,
+    inputs: &'b [Param],
+    processor: F,
 }
 
 impl<Ins> Clone for Mep<Ins>
     where Ins: Clone {
     fn clone(&self) -> Self {
-        Mep{instructions: self.instructions.clone(), unit_mutate_size: self.unit_mutate_size,
-            crossover_points: self.crossover_points}
+        Mep{program: self.program.clone(), unit_mutate_size: self.unit_mutate_size,
+            crossover_points: self.crossover_points, inputs: self.inputs}
     }
 }
 
 impl<Ins> Mep<Ins> {
-    //Generates a new Mep with a particular size and takes a closure to generate random instructions
-    pub fn new<I>(unit_mutate_size: usize, crossover_points: usize, instruction_iter: I) -> Mep<Ins>
-        where I: Iterator<Item=Ins> {
-        Mep{instructions: instruction_iter.collect(), unit_mutate_size: unit_mutate_size,
-            crossover_points: crossover_points}
+    /*
+    Generates a new Mep with a particular size and takes a closure to generate random instructions.
+    Takes an RNG as well to generate random internal data for each instruction.
+    */
+    pub fn new<I, R>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut R, instruction_iter: I)
+        -> Mep<Ins> where I: Iterator<Item=Ins>, R: Rng {
+        Mep{program: instruction_iter.enumerate()
+                .map(|(index, ins)| Opcode{
+                        instruction: ins,
+                        first: rng.gen_range(0, index + inputs),
+                        second: rng.gen_range(0, index + inputs)
+                    }
+                ).collect(),
+            unit_mutate_size: unit_mutate_size,
+            crossover_points: crossover_points,
+            inputs: inputs
+        }
     }
 }
 
-impl<Ins> GeneticAlgorithm<Ins, Vec<Ins>> for Mep<Ins> where Ins: Clone {
+impl<Ins> GeneticAlgorithm<Ins> for Mep<Ins>
+    where Ins: Clone
+{
     fn mate<R>(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> where R: Rng {
+        //Each Mep must have the same amount of inputs
+        //TODO: Once Rust implements generic values, this can be made explicit and is not needed
+        assert!(parents.0.inputs == parents.1.inputs);
         //Get the smallest of the two lengths
-        let total_instructions = cmp::min(parents.0.instructions.len(), parents.1.instructions.len());
-        Mep{instructions:
+        let total_instructions = cmp::min(parents.0.program.len(), parents.1.program.len());
+        Mep{program:
             //Generate a randomly sized sequence between 1 and half of the total possible crossover points
             (0..rng.gen_range(1, total_instructions / 2))
             //Map these to random crossover points
@@ -50,20 +99,24 @@ impl<Ins> GeneticAlgorithm<Ins, Vec<Ins>> for Mep<Ins> where Ins: Clone {
             .enumerate()
             //Map even pairs to ranges in parent 0 and odd ones to ranges in parent 1 and expand the ranges
             .flat_map(|(index, range)| {
-                {if index % 2 == 0 {parents.0} else {parents.1}}.instructions[range].iter().cloned()
+                {if index % 2 == 0 {parents.0} else {parents.1}}.program[range].iter().cloned()
             })
-            //Collect all the groups from each parent
+            //Collect all the instruction ranges from each parent
             .collect(),
+
             unit_mutate_size: if parents.0.unit_mutate_size < parents.1.unit_mutate_size {
                 rng.gen_range(parents.0.unit_mutate_size, parents.1.unit_mutate_size + 1)
             } else {
                 rng.gen_range(parents.1.unit_mutate_size, parents.0.unit_mutate_size + 1)
             },
+
             crossover_points: if parents.0.crossover_points < parents.1.crossover_points {
                 rng.gen_range(parents.0.crossover_points, parents.1.crossover_points + 1)
             } else {
                 rng.gen_range(parents.1.crossover_points, parents.0.crossover_points + 1)
             },
+
+            inputs: parents.0.inputs
         }
     }
 
@@ -104,18 +157,79 @@ impl<Ins> GeneticAlgorithm<Ins, Vec<Ins>> for Mep<Ins> where Ins: Clone {
         //Mutate the instructions using the mutator
         loop {
             //Choose a random location in the instructions and then add a random value up to the unit_mutate_size
-            let choice = rng.gen_range(0, self.instructions.len()) + rng.gen_range(0, self.unit_mutate_size);
+            let choice = rng.gen_range(0, self.program.len()) + rng.gen_range(0, self.unit_mutate_size);
             //Whenever we choose a location outside the vector reject the choice and end mutation
-            if choice >= self.instructions.len() {
+            if choice >= self.program.len() {
                 break;
             }
-            //Mutate the valid location using the instruction mutator
-            mutator(&mut self.instructions[choice]);
+            let op = &self.program[choice];
+            //Randomly mutate only one of the things contained here
+            match rng.gen_range(0, 3) {
+                0 => mutator(&mut op.instruction),
+                1 => op.first = rng.gen_range(0, choice + self.inputs),
+                2 => op.second = rng.gen_range(0, choice + self.inputs),
+            }
         }
     }
+}
 
-    fn call<F>(&self, program: F) where F: FnOnce(&Vec<Ins>) {
-        program(&self.instructions);
+/*
+FunctionalAlgorithm is implemented for Mep where all inputs, intermediary values, and outputs are of the same type only.
+This constraint is due to the fact that every single call of the processor closure can consume input values or
+results from previous calls of the processor closure. Also, the output is also determined by calls to the processor
+closure. Due to this restriction, all of these types must be the same for Mep, thus FunctionalAlgorithm is only
+implemented then.
+*/
+impl<'a, 'b, Ins, Param, F> FunctionalAlgorithm<Ins, Param, Param, Param, ResultIterator<'a, 'b, Ins, Param, F>, F> for Mep<Ins>
+    where F: Fn(&Ins, Param, Param) -> Param {
+    fn execute(&self, inputs: &[Param],
+        outputs: usize, processor: F) -> ResultIterator<'a, 'b, Ins, Param, F> {
+        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
+        assert!(outputs <= self.program.len());
+        ResultIterator{
+            mep: self,
+            buff: vec![None; self.program.len()],
+            solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
+            inputs: inputs,
+            processor: processor,
+        }
+    }
+}
+
+impl<'a, 'b, Ins, Param, F> Iterator for ResultIterator<'a, 'b, Ins, Param, F>
+    where F: Fn(&Ins, Param, Param) -> Param {
+    type Item = Param;
+    fn next(&mut self) -> Option<Param> {
+        match self.solve_iter.next() {
+            None => None,
+            Some(i) => {
+                let op_solved;
+                op_solved = |i: usize| {
+                    //If this is an input, it is already solved, so return the result immediately
+                    if (i < self.mep.inputs) {
+                        return self.inputs[i];
+                    }
+                    //Check if this has been evaluated or not
+                    match self.buff[i - self.mep.inputs] {
+                        //If it has, return the value
+                        Some(x) => x,
+                        //If it hasnt been solved
+                        None => {
+                            //Get a reference to the opcode
+                            let op = &self.mep.program[i];
+                            //Compute the result of the operation, ensuring the inputs are solved beforehand
+                            let result = self.processor(&op.instruction, op_solved(op.first), op_solved(op.second));
+                            //Properly store the Some result to the buffer
+                            self.buff[i - self.mep.inputs] = Some(result);
+                            //Return the result
+                            result
+                        }
+                    }
+                };
+                //Use the op_solved closure to evaluate the instruction
+                Some(op_solved(i))
+            }
+        }
     }
 }
 
@@ -145,7 +259,7 @@ mod tests {
         assert!(rng.clone().gen_iter::<u32>().take(5).collect::<Vec<_>>() != old_rngs);
 
         c.mutate(&mut rng, |ins: &mut u32| *ins = 2);
-        c.call(|_: &Vec<u32>| {});
+        c.call(|_, (_, _)| {});
 
         assert_eq!(c.instructions, [0, 7, 5, 4, 2, 8, 5, 6, 0, 2]);
     }
