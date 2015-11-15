@@ -3,7 +3,8 @@ use std::cmp;
 use rand::Rng;
 use std::ops::Range;
 use std::iter::Rev;
-use super::GeneticAlgorithm;
+use super::{Learning, Genetic};
+use std::marker::PhantomData;
 
 /*
 Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
@@ -29,24 +30,28 @@ impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
 /*
 A multi-expression program represented using a series of operations that can reuse results of previous operations.
 */
-pub struct Mep<Ins, F1, F2> {
+pub struct Mep<Ins, R, Param, F1, F2>
+    where R: Rng, F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param
+{
     program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
     crossover_points: usize,
     inputs: usize,
     mutator: F1,
     processor: F2,
+    phantom: (PhantomData<R>, PhantomData<Param>),
 }
 
-struct ResultIterator<'a, 'b, Ins: 'a, Param: 'b, F> where F: Fn(&Ins, Param, Param) -> Param {
-    mep: &'a Mep<Ins>,
+struct ResultIterator<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a>
+    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+{
+    mep: &'a Mep<Ins, R, Param, F1, F2>,
     buff: Vec<Option<Param>>,
     solve_iter: Rev<usize>,
-    inputs: &'b [Param],
-    processor: F,
+    inputs: &'a [Param]
 }
 
-impl<Ins, F1, F2> Clone for Mep<Ins, F1, F2>
+impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
     where Ins: Clone
 {
     fn clone(&self) -> Self {
@@ -61,13 +66,16 @@ impl<Ins, F1, F2> Clone for Mep<Ins, F1, F2>
     }
 }
 
-impl<Ins, F1, F2> Mep<Ins, F1, F2> {
+impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2>
+    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+{
     /*
     Generates a new Mep with a particular size and takes a closure to generate random instructions.
-    Takes an RNG as well to generate random internal data for each instruction.
+    Takes an RNG as well to generate random internal data for each instruction. This Rng is different from the Mep's
+    Rng, thus it is parameterized separately here.
     */
-    pub fn new<I, R>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut R, instruction_iter: I,
-        mutator: F1, processor: F2) -> Mep<Ins> where I: Iterator<Item=Ins>, R: Rng {
+    pub fn new<I, Rg>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut Rg, instruction_iter: I,
+        mutator: F1, processor: F2) -> Self where I: Iterator<Item=Ins>, Rg: Rng {
         Mep{
             program: instruction_iter.enumerate()
                 .map(|(index, ins)| Opcode{
@@ -85,10 +93,30 @@ impl<Ins, F1, F2> Mep<Ins, F1, F2> {
     }
 }
 
-impl<'a, 'b, Ins: 'a, Param: 'b, R> GeneticAlgorithm<R, Param, Param> for Mep<Ins>
-    where Ins: Clone, R: Rng
+impl<'a, Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
+    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
 {
-    fn mate(parents: (&Mep<Ins>, &Mep<Ins>), rng: &mut R) -> Mep<Ins> {
+    fn compute(&self, inputs: &[Param], outputs: usize) -> Box</*ResultIterator<'a, Ins, R, Param, F1, F2>*/Iterator<Item=Param>> {
+        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
+        assert!(outputs <= self.program.len());
+        Box::new(ResultIterator{
+            mep: self,
+            buff: vec![None; self.program.len()],
+            solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
+            inputs: inputs,
+            processor: self.processor,
+        })
+    }
+
+    fn train(&self, _: &[Param], _: &[Param], _: &mut R) {
+        //TODO: Implement fully
+    }
+}
+
+impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
+    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
+{
+    fn mate(parents: (&Self, &Self), rng: &mut R) -> Self {
         //Each Mep must have the same amount of inputs
         //TODO: Once Rust implements generic values, this can be made explicit and is not needed
         assert!(parents.0.inputs == parents.1.inputs);
@@ -179,28 +207,17 @@ impl<'a, 'b, Ins: 'a, Param: 'b, R> GeneticAlgorithm<R, Param, Param> for Mep<In
             let op = &self.program[choice];
             //Randomly mutate only one of the things contained here
             match rng.gen_range(0, 3) {
-                0 => mutator(&mut op.instruction),
+                0 => self.mutator(&mut op.instruction, rng),
                 1 => op.first = rng.gen_range(0, choice + self.inputs),
                 2 => op.second = rng.gen_range(0, choice + self.inputs),
             }
         }
     }
-
-    fn compute(&self, inputs: &[Param], outputs: usize) -> ResultIterator<'a, 'b, Ins, Param, F2> {
-        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
-        assert!(outputs <= self.program.len());
-        ResultIterator{
-            mep: self,
-            buff: vec![None; self.program.len()],
-            solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
-            inputs: inputs,
-            processor: self.processor,
-        }
-    }
 }
 
-impl<'a, 'b, Ins, Param, F> Iterator for ResultIterator<'a, 'b, Ins, Param, F>
-    where F: Fn(&Ins, Param, Param) -> Param {
+impl<'a, Ins, R, Param, F1, F2> Iterator for ResultIterator<'a, Ins, R, Param, F1, F2>
+    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+{
     type Item = Param;
     fn next(&mut self) -> Option<Param> {
         match self.solve_iter.next() {
@@ -221,7 +238,7 @@ impl<'a, 'b, Ins, Param, F> Iterator for ResultIterator<'a, 'b, Ins, Param, F>
                             //Get a reference to the opcode
                             let op = &self.mep.program[i];
                             //Compute the result of the operation, ensuring the inputs are solved beforehand
-                            let result = self.processor(&op.instruction, op_solved(op.first), op_solved(op.second));
+                            let result = self.mep.processor(&op.instruction, op_solved(op.first), op_solved(op.second));
                             //Properly store the Some result to the buffer
                             self.buff[i - self.mep.inputs] = Some(result);
                             //Return the result
@@ -240,7 +257,7 @@ impl<'a, 'b, Ins, Param, F> Iterator for ResultIterator<'a, 'b, Ins, Param, F>
 mod tests {
     use rand::{Isaac64Rng, SeedableRng, Rng};
     use super::*;
-    use super::super::GeneticAlgorithm;
+    use super::super::{Genetic, Learning};
 
     #[test]
     fn mep_new() {
