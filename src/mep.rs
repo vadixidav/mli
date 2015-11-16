@@ -39,7 +39,7 @@ pub struct Mep<Ins, R, Param, F1, F2>
     inputs: usize,
     mutator: F1,
     processor: F2,
-    phantom: (PhantomData<R>, PhantomData<Param>),
+    _phantom: (PhantomData<R>, PhantomData<Param>),
 }
 
 struct ResultIterator<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a>
