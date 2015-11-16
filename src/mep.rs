@@ -31,7 +31,7 @@ impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
 A multi-expression program represented using a series of operations that can reuse results of previous operations.
 */
 pub struct Mep<Ins, R, Param, F1, F2>
-    where R: Rng, F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param
+    where R: Rng, F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param
 {
     program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
@@ -43,16 +43,16 @@ pub struct Mep<Ins, R, Param, F1, F2>
 }
 
 struct ResultIterator<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a>
-    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
     mep: &'a Mep<Ins, R, Param, F1, F2>,
     buff: Vec<Option<Param>>,
-    solve_iter: Rev<usize>,
+    solve_iter: Rev<Range<usize>>,
     inputs: &'a [Param]
 }
 
 impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
-    where Ins: Clone
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
 {
     fn clone(&self) -> Self {
         Mep{
@@ -60,14 +60,15 @@ impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
             unit_mutate_size: self.unit_mutate_size,
             crossover_points: self.crossover_points,
             inputs: self.inputs,
-            mutator: self.mutator,
-            processor: self.processor
+            mutator: self.mutator.clone(),
+            processor: self.processor.clone(),
+            phantom: (PhantomData, PhantomData),
         }
     }
 }
 
 impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2>
-    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng
 {
     /*
     Generates a new Mep with a particular size and takes a closure to generate random instructions.
@@ -89,14 +90,15 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2>
             inputs: inputs,
             mutator: mutator,
             processor: processor,
+            phantom: (PhantomData, PhantomData),
         }
     }
 }
 
-impl<'a, Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+impl<Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
-    fn compute(&self, inputs: &[Param], outputs: usize) -> Box</*ResultIterator<'a, Ins, R, Param, F1, F2>*/Iterator<Item=Param>> {
+    fn compute<'a>(&'a self, inputs: &'a [Param], outputs: usize) -> Box<Iterator<Item=Param> + 'a> {
         //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
         assert!(outputs <= self.program.len());
         Box::new(ResultIterator{
@@ -104,7 +106,6 @@ impl<'a, Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param,
             buff: vec![None; self.program.len()],
             solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
             inputs: inputs,
-            processor: self.processor,
         })
     }
 
@@ -114,7 +115,7 @@ impl<'a, Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param,
 }
 
 impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone, Param: Clone
 {
     fn mate(parents: (&Self, &Self), rng: &mut R) -> Self {
         //Each Mep must have the same amount of inputs
@@ -157,8 +158,9 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
             },
 
             inputs: parents.0.inputs,
-            mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator,
-            processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor,
+            mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator.clone(),
+            processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor.clone(),
+            phantom: (PhantomData, PhantomData),
         }
     }
 
@@ -204,51 +206,54 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
             if choice >= self.program.len() {
                 break;
             }
-            let op = &self.program[choice];
+            let op = &mut self.program[choice];
             //Randomly mutate only one of the things contained here
             match rng.gen_range(0, 3) {
-                0 => self.mutator(&mut op.instruction, rng),
+                0 => (self.mutator)(&mut op.instruction, rng),
                 1 => op.first = rng.gen_range(0, choice + self.inputs),
                 2 => op.second = rng.gen_range(0, choice + self.inputs),
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+impl<'a, Ins, R, Param, F1, F2> ResultIterator<'a, Ins, R, Param, F1, F2>
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
+{
+    fn op_solved(&mut self, i: usize) -> Param {
+        //If this is an input, it is already solved, so return the result immediately
+        if i < self.mep.inputs {
+            return self.inputs[i].clone();
+        }
+        //Check if this has been evaluated or not
+        let possible = self.buff[i - self.mep.inputs].clone();
+        match possible {
+            //If it has, return the value
+            Some(x) => x,
+            //If it hasnt been solved
+            None => {
+                //Get a reference to the opcode
+                let op = &self.mep.program[i];
+                //Compute the result of the operation, ensuring the inputs are solved beforehand
+                let result = (self.mep.processor)(&op.instruction, self.op_solved(op.first), self.op_solved(op.second));
+                //Properly store the Some result to the buffer
+                self.buff[i - self.mep.inputs] = Some(result.clone());
+                //Return the result
+                result
             }
         }
     }
 }
 
 impl<'a, Ins, R, Param, F1, F2> Iterator for ResultIterator<'a, Ins, R, Param, F1, F2>
-    where F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param, R: Rng
+    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
     type Item = Param;
     fn next(&mut self) -> Option<Param> {
         match self.solve_iter.next() {
             None => None,
-            Some(i) => {
-                let op_solved;
-                op_solved = |i: usize| {
-                    //If this is an input, it is already solved, so return the result immediately
-                    if (i < self.mep.inputs) {
-                        return self.inputs[i];
-                    }
-                    //Check if this has been evaluated or not
-                    match self.buff[i - self.mep.inputs] {
-                        //If it has, return the value
-                        Some(x) => x,
-                        //If it hasnt been solved
-                        None => {
-                            //Get a reference to the opcode
-                            let op = &self.mep.program[i];
-                            //Compute the result of the operation, ensuring the inputs are solved beforehand
-                            let result = self.mep.processor(&op.instruction, op_solved(op.first), op_solved(op.second));
-                            //Properly store the Some result to the buffer
-                            self.buff[i - self.mep.inputs] = Some(result);
-                            //Return the result
-                            result
-                        }
-                    }
-                };
-                //Use the op_solved closure to evaluate the instruction
-                Some(op_solved(i))
-            }
+            Some(i) => Some(self.op_solved(i)),
         }
     }
 }
