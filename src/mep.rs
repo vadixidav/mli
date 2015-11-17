@@ -1,3 +1,4 @@
+extern crate num;
 use std::collections::BTreeSet;
 use std::cmp;
 use rand::Rng;
@@ -31,7 +32,7 @@ impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
 A multi-expression program represented using a series of operations that can reuse results of previous operations.
 */
 pub struct Mep<Ins, R, Param, F1, F2>
-    where R: Rng, F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param
+    where R: Rng, F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param
 {
     program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
@@ -43,7 +44,7 @@ pub struct Mep<Ins, R, Param, F1, F2>
 }
 
 struct ResultIterator<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
     mep: &'a Mep<Ins, R, Param, F1, F2>,
     buff: Vec<Option<Param>>,
@@ -52,7 +53,7 @@ struct ResultIterator<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a>
 }
 
 impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
 {
     fn clone(&self) -> Self {
         Mep{
@@ -60,23 +61,25 @@ impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
             unit_mutate_size: self.unit_mutate_size,
             crossover_points: self.crossover_points,
             inputs: self.inputs,
-            mutator: self.mutator.clone(),
-            processor: self.processor.clone(),
-            phantom: (PhantomData, PhantomData),
+            mutator: self.mutator,
+            processor: self.processor,
+            _phantom: (PhantomData, PhantomData),
         }
     }
 }
 
 impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng
 {
     /*
     Generates a new Mep with a particular size and takes a closure to generate random instructions.
     Takes an RNG as well to generate random internal data for each instruction. This Rng is different from the Mep's
     Rng, thus it is parameterized separately here.
     */
-    pub fn new<I, Rg>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut Rg, instruction_iter: I,
-        mutator: F1, processor: F2) -> Self where I: Iterator<Item=Ins>, Rg: Rng {
+    pub fn new<I, Rg>(inputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut Rg,
+        instruction_iter: I, mutator: F1, processor: F2) -> Self
+        where I: Iterator<Item=Ins>, Rg: Rng
+    {
         Mep{
             program: instruction_iter.enumerate()
                 .map(|(index, ins)| Opcode{
@@ -90,13 +93,14 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2>
             inputs: inputs,
             mutator: mutator,
             processor: processor,
-            phantom: (PhantomData, PhantomData),
+            _phantom: (PhantomData, PhantomData),
         }
     }
 }
 
 impl<Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone, Ins: Clone,
+    Param: num::Signed + PartialOrd
 {
     fn compute<'a>(&'a self, inputs: &'a [Param], outputs: usize) -> Box<Iterator<Item=Param> + 'a> {
         //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
@@ -104,18 +108,49 @@ impl<Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1,
         Box::new(ResultIterator{
             mep: self,
             buff: vec![None; self.program.len()],
-            solve_iter: (self.program.len() + self.inputs - outputs..self.program.len() + self.inputs).rev(),
+            solve_iter: ((self.program.len() + self.inputs - outputs)..(self.program.len() + self.inputs)).rev(),
             inputs: inputs,
         })
     }
 
-    fn train(&self, _: &[Param], _: &[Param], _: &mut R) {
-        //TODO: Implement fully
+    fn train(&mut self, level: u32, inputs: &[Param], outputs: &[Param], rng: &mut R) {
+        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
+        assert!(outputs.len() <= self.program.len());
+        assert!(level != 0);
+        let rank = |m: &Self| {
+            m.compute(inputs, outputs.len()).enumerate().map(|(i, x): (usize, Param)| {
+                let unsq = num::abs(x - outputs[i].clone());
+                unsq.clone() * unsq
+            }).fold(Param::zero(), |acc, item| acc + item)
+        };
+        /* TODO: Add this block once min_by and sum become stable
+        *self = (0..level).map(|_: u32| self.clone()).map(|m| m.mutate(rng); m)
+        .min_by::<Param, _>(|item: &Self|
+            item.compute(inputs, outputs.len()).enumerate().map(|(i, x): (usize, Param)| {
+                let unsq = num::abs(x - outputs[i].clone());
+                unsq.clone() * unsq
+            }).sum())
+        .unwrap();
+        */
+        let v = (0..level).map(|_: u32| {
+            let mut m = self.clone();
+            m.mutate(rng); (rank(&m), m)
+        }).collect::<Vec<_>>();
+        let mut best = 0;
+        for ix in 0..v.len() {
+            if v[ix].0 < v[best].0 {
+                best = ix;
+            }
+        }
+        if v[best].0 < rank(self) {
+            *self = v[best].1.clone();
+        }
     }
 }
 
 impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone, Param: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone, Param: Clone,
+    Param: num::Signed + PartialOrd
 {
     fn mate(parents: (&Self, &Self), rng: &mut R) -> Self {
         //Each Mep must have the same amount of inputs
@@ -158,9 +193,9 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
             },
 
             inputs: parents.0.inputs,
-            mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator.clone(),
-            processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor.clone(),
-            phantom: (PhantomData, PhantomData),
+            mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator,
+            processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor,
+            _phantom: (PhantomData, PhantomData),
         }
     }
 
@@ -219,7 +254,7 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
 }
 
 impl<'a, Ins, R, Param, F1, F2> ResultIterator<'a, Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
     fn op_solved(&mut self, i: usize) -> Param {
         //If this is an input, it is already solved, so return the result immediately
@@ -234,7 +269,7 @@ impl<'a, Ins, R, Param, F1, F2> ResultIterator<'a, Ins, R, Param, F1, F2>
             //If it hasnt been solved
             None => {
                 //Get a reference to the opcode
-                let op = &self.mep.program[i];
+                let op = &self.mep.program[i - self.mep.inputs];
                 //Compute the result of the operation, ensuring the inputs are solved beforehand
                 let result = (self.mep.processor)(&op.instruction, self.op_solved(op.first), self.op_solved(op.second));
                 //Properly store the Some result to the buffer
@@ -247,7 +282,7 @@ impl<'a, Ins, R, Param, F1, F2> ResultIterator<'a, Ins, R, Param, F1, F2>
 }
 
 impl<'a, Ins, R, Param, F1, F2> Iterator for ResultIterator<'a, Ins, R, Param, F1, F2>
-    where F1: Clone + Fn(&mut Ins, &mut R), F2: Clone + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
+    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone
 {
     type Item = Param;
     fn next(&mut self) -> Option<Param> {
@@ -264,28 +299,36 @@ mod tests {
     use super::*;
     use super::super::{Genetic, Learning};
 
-    #[test]
-    fn mep_new() {
-        let a: Mep<u32> = Mep::new(3, 3, 0..8);
+    fn mutator(_: &mut i32, _: &mut Isaac64Rng) {}
+    fn processor(_: &i32, _: i32, _: i32) -> i32 {0}
 
-        assert_eq!(a.instructions, (0..8).collect::<Vec<_>>());
+    #[test]
+    fn new() {
+        let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
+        let a = Mep::new(3, 10, 10, &mut rng, 0..30, mutator, processor);
+
+        assert_eq!(a.program.iter().map(|i| i.instruction).collect::<Vec<_>>(), (0..30).collect::<Vec<_>>());
     }
 
     #[test]
-    fn mep_crossover() {
+    fn crossover() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
         let (a, b) = {
-            let mut clos = || Mep::new(3, 3, rng.gen_iter::<u32>().map(|x| x % 10).take(10));
+            let mut clos = || Mep::new(3, 10, 10, &mut rng, 0..30, mutator, processor);
             (clos(), clos())
         };
-        let old_rngs: Vec<_> = rng.clone().gen_iter::<u32>().take(5).collect();
-        let mut c = Mep::mate((&a, &b), &mut rng);
+        let old_rngs: Vec<_> = rng.clone().gen_iter::<i32>().take(5).collect();
+        let _c = Mep::mate((&a, &b), &mut rng);
         //Ensure that rng was borrowed mutably
-        assert!(rng.clone().gen_iter::<u32>().take(5).collect::<Vec<_>>() != old_rngs);
+        assert!(rng.clone().gen_iter::<i32>().take(5).collect::<Vec<_>>() != old_rngs);
+    }
 
-        c.mutate(&mut rng, |ins: &mut u32| *ins = 2);
-        c.call(|_, (_, _)| {});
+    #[test]
+    fn compute() {
+        let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
+        let a = Mep::new(3, 10, 10, &mut rng, 0..30, mutator, processor);
 
-        assert_eq!(c.instructions, [0, 7, 5, 4, 2, 8, 5, 6, 0, 2]);
+        let inputs = [2, 3, 4];
+        assert_eq!(a.compute(&inputs[..], 1).collect::<Vec<_>>(), [0]);
     }
 }

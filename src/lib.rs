@@ -9,8 +9,11 @@ A learning algorithm is one that can be trained and performs computations.
 pub trait Learning<R, In, Out> where R: Rng {
     //Push data through the algorithm to get outputs
     fn compute<'a>(&'a self, inputs: &'a [In], outputs: usize) -> Box<Iterator<Item=Out> + 'a>;
-    //Train requires inputs and outputs required by the system and an Rng to introduce randomness
-    fn train(&self, inputs: &[In], outputs: &[Out], rng: &mut R);
+    /*
+    Train requires inputs and outputs required by the system and an Rng to introduce randomness.
+    Level should scale linearly with the amount of time spent training.
+    */
+    fn train(&mut self, level: u32, inputs: &[In], outputs: &[Out], rng: &mut R);
 }
 
 /*
