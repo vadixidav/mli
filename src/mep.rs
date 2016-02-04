@@ -6,12 +6,10 @@ use std::ops::Range;
 use std::iter::Rev;
 use super::{Learning, Genetic};
 use std::marker::PhantomData;
-
 /*
-Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
-previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
-to the program, which sequentially preceed the internal instructions.
-*/
+///Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
+///previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
+///to the program, which sequentially preceed the internal instructions.
 struct Opcode<Ins> {
     instruction: Ins,
     first: usize,
@@ -28,9 +26,7 @@ impl<Ins> Clone for Opcode<Ins> where Ins: Clone {
     }
 }
 
-/*
-A multi-expression program represented using a series of operations that can reuse results of previous operations.
-*/
+///A multi-expression program represented using a series of operations that can reuse results of previous operations.
 pub struct Mep<Ins, R, Param, F1, F2>
     where R: Rng, F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param
 {
@@ -332,3 +328,4 @@ mod tests {
         assert_eq!(a.compute(&inputs[..], 1).collect::<Vec<_>>(), [0]);
     }
 }
+*/
