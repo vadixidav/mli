@@ -6,7 +6,7 @@ This library presently has separate generic traits for learning and genetic algo
 In this library a learning algorithm is one that can be trained like a neural network. A genetic algorithm is one
 that can be mutated, cloned, and mated with other algorithms. All genetic algorithms must be learning algorithms.
 
-###Plans:
+### Plans:
 - Add algorithms
   - Neural networks
     - Sigmoid
