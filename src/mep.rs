@@ -18,7 +18,6 @@ struct Opcode<Ins> {
 }
 
 ///A multi-expression program represented using a series of operations that can reuse results of previous operations.
-#[derive(Clone)]
 pub struct Mep<Ins, R, Param, F1, F2> {
     program: Vec<Opcode<Ins>>,
     unit_mutate_size: usize,
@@ -28,6 +27,23 @@ pub struct Mep<Ins, R, Param, F1, F2> {
     mutator: F1,
     processor: F2,
     _phantom: (PhantomData<R>, PhantomData<Param>),
+}
+
+impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
+    where Ins: Clone, F1: Clone, F2: Clone
+{
+    fn clone(&self) -> Self {
+        Mep{
+            program: self.program.clone(),
+            unit_mutate_size: self.unit_mutate_size,
+            crossover_points: self.crossover_points,
+            inputs: self.inputs,
+            outputs: self.outputs,
+            mutator: self.mutator.clone(),
+            processor: self.processor.clone(),
+            _phantom: (PhantomData, PhantomData),
+        }
+    }
 }
 
 /*
@@ -123,15 +139,14 @@ impl<Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1,
     }
 }*/
 
-/*
-impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone, Param: Clone,
-    Param: num::Signed + PartialOrd
+impl<Ins, R, Param, F1, F2> Genetic<R> for Mep<Ins, R, Param, F1, F2>
+    where R: Rng, Ins: Clone, Param: Clone, F1: Copy + Fn(&mut Ins, &mut R), F2: Copy
 {
     fn mate(parents: (&Self, &Self), rng: &mut R) -> Self {
         //Each Mep must have the same amount of inputs
         //TODO: Once Rust implements generic values, this can be made explicit and is not needed
         assert!(parents.0.inputs == parents.1.inputs);
+        assert!(parents.0.outputs == parents.1.outputs);
         //Get the smallest of the two lengths
         let total_instructions = cmp::min(parents.0.program.len(), parents.1.program.len());
         Mep{program:
@@ -169,6 +184,7 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
             },
 
             inputs: parents.0.inputs,
+            outputs: parents.0.outputs,
             mutator: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.mutator,
             processor: {if rng.gen_range(0, 2) == 0 {parents.0} else {parents.1}}.processor,
             _phantom: (PhantomData, PhantomData),
@@ -227,7 +243,7 @@ impl<Ins, R, Param, F1, F2> Genetic<R, Param, Param> for Mep<Ins, R, Param, F1, 
             }
         }
     }
-}*/
+}
 
 impl<'a, Ins: 'a, R: 'a, Param: 'a, F1: 'a, F2: 'a> SISO<'a, Param, Param> for Mep<Ins, R, Param, F1, F2>
     where F2: Fn(&Ins, Param, Param) -> Param, Param: Clone
@@ -304,24 +320,23 @@ mod tests {
 
     #[test]
     fn new() {
-        let a = Mep::new(3, 1, 10, 10, &mut Isaac64Rng::from_seed(&[1, 2, 3, 4]), 0..30i32, mutator, processor);
+        let a = Mep::new(3, 1, 10, 10, &mut Isaac64Rng::from_seed(&[1, 2, 3, 4]), 0..30, mutator, processor);
 
-        assert_eq!(a.program.iter().map(|i| i.instruction).collect::<Vec<_>>(), (0..30i32).collect::<Vec<_>>());
+        assert_eq!(a.program.iter().map(|i| i.instruction).collect::<Vec<_>>(), (0..30).collect::<Vec<_>>());
     }
 
-    /*
     #[test]
     fn crossover() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
         let (a, b) = {
-            let mut clos = || Mep::new(3, 10, 10, &mut rng, 0..30, mutator, processor);
+            let mut clos = || Mep::new(3, 1, 10, 10, &mut rng, 0..30, mutator, processor);
             (clos(), clos())
         };
         let old_rngs: Vec<_> = rng.clone().gen_iter::<i32>().take(5).collect();
-        let _c = Mep::mate((&a, &b), &mut rng);
+        let _ = Mep::mate((&a, &b), &mut rng);
         //Ensure that rng was borrowed mutably
         assert!(rng.clone().gen_iter::<i32>().take(5).collect::<Vec<_>>() != old_rngs);
-    }*/
+    }
 
     #[test]
     fn compute() {
