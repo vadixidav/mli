@@ -55,7 +55,7 @@ pub trait Learning<R, In, Out>
 ///the learning algorithm component of the genetic algorithm.
 ///
 ///Note: This API is highly likely to change before version 1.0.
-pub trait Genetic<R, In, Out> : Clone
+pub trait Genetic<R> : Clone
     where R: rand::Rng
 {
     ///The mate function takes a tuple of two parent references and an Rng, then returns a new child.
