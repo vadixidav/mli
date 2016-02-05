@@ -297,14 +297,14 @@ impl<'a, Ins, R, Param, F1, F2> Iterator for ResultIterator<'a, Ins, R, Param, F
 mod tests {
     use rand::{Isaac64Rng, SeedableRng, Rng};
     use super::*;
-    use super::super::{Genetic, Learning};
+    use super::super::{Genetic, Learning, SISO};
 
     fn mutator(_: &mut i32, _: &mut Isaac64Rng) {}
     fn processor(_: &i32, _: i32, _: i32) -> i32 {0}
 
     #[test]
     fn new() {
-        let a = Mep::new(3, 0, 10, 10, &mut Isaac64Rng::from_seed(&[1, 2, 3, 4]), 0..30i32, mutator, processor);
+        let a = Mep::new(3, 1, 10, 10, &mut Isaac64Rng::from_seed(&[1, 2, 3, 4]), 0..30i32, mutator, processor);
 
         assert_eq!(a.program.iter().map(|i| i.instruction).collect::<Vec<_>>(), (0..30i32).collect::<Vec<_>>());
     }
@@ -321,14 +321,14 @@ mod tests {
         let _c = Mep::mate((&a, &b), &mut rng);
         //Ensure that rng was borrowed mutably
         assert!(rng.clone().gen_iter::<i32>().take(5).collect::<Vec<_>>() != old_rngs);
-    }
+    }*/
 
     #[test]
     fn compute() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
-        let a = Mep::new(3, 10, 10, &mut rng, 0..30, mutator, processor);
+        let a = Mep::new(3, 1, 10, 10, &mut rng, 0..30, mutator, processor);
 
         let inputs = [2, 3, 4];
-        assert_eq!(a.compute(&inputs[..], 1).collect::<Vec<_>>(), [0]);
-    }*/
+        assert_eq!(a.compute(&inputs[..]).collect::<Vec<_>>(), [0]);
+    }
 }
