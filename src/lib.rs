@@ -40,9 +40,7 @@ pub trait VIVO<'a, In, Out> {
 }
 
 ///A learning algorithm is one that can be trained and performs computations.
-pub trait Learning<R, In, Out>
-    where R: rand::Rng
-{
+pub trait Learning<R, In, Out> {
     ///Train requires inputs and outputs required by the system and an Rng to introduce randomness.
     ///Level should scale linearly with the amount of time spent training and level 1 should represent the smallest
     ///amount of training possible.
@@ -55,9 +53,7 @@ pub trait Learning<R, In, Out>
 ///the learning algorithm component of the genetic algorithm.
 ///
 ///Note: This API is highly likely to change before version 1.0.
-pub trait Genetic<R> : Clone
-    where R: rand::Rng
-{
+pub trait Genetic<R> : Clone {
     ///The mate function takes a tuple of two parent references and an Rng, then returns a new child.
     fn mate(parents: (&Self, &Self), rng: &mut R) -> Self;
     ///The mutate function performs a unit mutation. A single, several, or no actual mutations may occour.
