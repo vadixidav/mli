@@ -30,7 +30,7 @@ pub struct Mep<Ins, R, Param, F1, F2> {
 }
 
 impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
-    where Ins: Clone, F1: Clone, F2: Clone
+    where Ins: Clone, F1: Copy, F2: Copy
 {
     fn clone(&self) -> Self {
         Mep{
@@ -39,8 +39,8 @@ impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
             crossover_points: self.crossover_points,
             inputs: self.inputs,
             outputs: self.outputs,
-            mutator: self.mutator.clone(),
-            processor: self.processor.clone(),
+            mutator: self.mutator,
+            processor: self.processor,
             _phantom: (PhantomData, PhantomData),
         }
     }
