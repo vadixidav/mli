@@ -46,23 +46,6 @@ impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
     }
 }
 
-/*
-impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
-    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Ins: Clone
-{
-    fn clone(&self) -> Self {
-        Mep{
-            program: self.program.clone(),
-            unit_mutate_size: self.unit_mutate_size,
-            crossover_points: self.crossover_points,
-            inputs: self.inputs,
-            mutator: self.mutator,
-            processor: self.processor,
-            _phantom: (PhantomData, PhantomData),
-        }
-    }
-}*/
-
 impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2> {
     ///Generates a new Mep with a particular size and takes a closure to generate random instructions.
     ///Takes an RNG as well to generate random internal data for each instruction. This Rng is different from the Mep's
@@ -89,55 +72,6 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2> {
         }
     }
 }
-
-/*
-impl<Ins, R, Param, F1, F2> Learning<R, Param, Param> for Mep<Ins, R, Param, F1, F2>
-    where F1: Copy + Fn(&mut Ins, &mut R), F2: Copy + Fn(&Ins, Param, Param) -> Param, R: Rng, Param: Clone, Ins: Clone,
-    Param: num::Signed + PartialOrd
-{
-    fn compute<'a>(&'a self, inputs: &'a [Param], outputs: usize) -> Box<Iterator<Item=Param> + 'a> {
-        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
-        assert!(outputs <= self.program.len());
-        Box::new(ResultIterator{
-            mep: self,
-            buff: vec![None; self.program.len()],
-            solve_iter: ((self.program.len() + self.inputs - outputs)..(self.program.len() + self.inputs)).rev(),
-            inputs: inputs,
-        })
-    }
-
-    fn train(&mut self, level: u32, inputs: &[Param], outputs: &[Param], rng: &mut R) {
-        //Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
-        assert!(outputs.len() <= self.program.len());
-        assert!(level != 0);
-        let rank = |m: &Self| {
-            m.compute(inputs, outputs.len()).enumerate().map(|(i, x): (usize, Param)| {
-                let unsq = num::abs(x - outputs[i].clone());
-                unsq.clone() * unsq
-            }).fold(Param::zero(), |acc, item| acc + item)
-        };
-        *self = (0..level).map(|_: u32| self.clone()).map(|m| m.mutate(rng); m)
-            .min_by::<Param, _>(|item: &Self|
-                item.compute(inputs, outputs.len()).enumerate().map(|(i, x): (usize, Param)| {
-                    let unsq = num::abs(x - outputs[i].clone());
-                    unsq.clone() * unsq
-                }).sum())
-            .unwrap();
-        let v = (0..level).map(|_: u32| {
-            let mut m = self.clone();
-            m.mutate(rng); (rank(&m), m)
-        }).collect::<Vec<_>>();
-        let mut best = 0;
-        for ix in 0..v.len() {
-            if v[ix].0 < v[best].0 {
-                best = ix;
-            }
-        }
-        if v[best].0 < rank(self) {
-            *self = v[best].1.clone();
-        }
-    }
-}*/
 
 impl<Ins, R, Param, F1, F2> Genetic<R> for Mep<Ins, R, Param, F1, F2>
     where R: Rng, Ins: Clone, Param: Clone, F1: Copy + Fn(&mut Ins, &mut R), F2: Copy
@@ -191,20 +125,15 @@ impl<Ins, R, Param, F1, F2> Genetic<R> for Mep<Ins, R, Param, F1, F2>
         }
     }
 
-    /*
-    The Mep mutate function operates using the unit_mutate_size. This variable specifies the amount of instructions for
-    which a single mutation is expect to occour every time mutate is called. This variable can be mutated inside of
-    mutate, in which case it may never go below 1, but may tend towards infinity in increments of 1. This variable is
-    implemented as a u64 to permit it to expand unbounded to mutation levels that are so low that mutations virtually
-    never happen. Allowing this to mutate allows species to find the equilibrium between genomic adaptability and
-    stability. If a species develops information gathering, then it can adapt intellegently, making it possibly more
-    beneficial to operate at lower mutation rates. Setting the default mutation rate for species properly, or allowing
-    it to adapt as the simulation continues, permits species to survive more frequently that are randomly generated.
-
-    Likewise, the functions for random instruction mutation can be adapted as the simulation continues
-    to optimize the generation of more desireable random mutations. For instance, instructions that
-    occur more frequently should be generated randomly more frequently.
-    */
+    ///The Mep mutate function operates using the unit_mutate_size. This variable specifies the amount of instructions
+    ///for which a single mutation is expect to occour every time mutate is called. This variable can be mutated inside
+    ///of mutate, in which case it may never go below 1, but may tend towards infinity in increments of 1. This variable
+    ///is implemented as a u64 to permit it to expand unbounded to mutation levels that are so low that mutations
+    ///virtually never happen. Allowing this to mutate allows species to find the equilibrium between genomic
+    ///adaptability and stability. If a species develops information gathering, then it can adapt intellegently, making
+    ///it possibly more beneficial to operate at lower mutation rates. Setting the default mutation rate for species
+    ///properly, or allowing it to adapt as the simulation continues, permits species to survive more frequently that
+    ///are randomly generated.
     fn mutate(&mut self, rng: &mut R) {
         //Mutate unit_mutate_size
         if rng.gen_range(0, self.unit_mutate_size) == 0 {

@@ -43,14 +43,13 @@ pub trait VIVO<'a, In, Out> {
 pub trait Learning<R, In, Out> {
     ///Train requires inputs and outputs required by the system and an Rng to introduce randomness.
     ///Level should scale linearly with the amount of time spent training and level 1 should represent the smallest
-    ///amount of training possible.
+    ///amount of training reasonably possible.
     fn train(&mut self, level: u32, inputs: &[In], outputs: &[Out], rng: &mut R);
 }
 
 ///Genetic is a trait that allows genetic manipulation. Genetic algorithms require duplication, which is why
 ///there is a requirement for Clone. It is parameterized with an Rng (R) type so that the algorithms can extract random
-///data when mating so that mating can happen randomly. In and Out are parameters specifying the inputs and outputs of
-///the learning algorithm component of the genetic algorithm.
+///data when mating so that mating can happen randomly.
 ///
 ///Note: This API is highly likely to change before version 1.0.
 pub trait Genetic<R> : Clone {
