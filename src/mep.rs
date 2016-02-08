@@ -4,7 +4,7 @@ use std::cmp;
 use rand::Rng;
 use std::ops::Range;
 use std::iter::Rev;
-use super::{Learning, Genetic, SISO};
+use super::{Genetic, SISO};
 use std::marker::PhantomData;
 
 ///Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
@@ -242,7 +242,7 @@ impl<'a, Ins, R, Param, F1, F2> Iterator for ResultIterator<'a, Ins, R, Param, F
 mod tests {
     use rand::{Isaac64Rng, SeedableRng, Rng};
     use super::*;
-    use super::super::{Genetic, Learning, SISO};
+    use super::super::{Genetic, SISO};
 
     fn mutator(_: &mut i32, _: &mut Isaac64Rng) {}
     fn processor(_: &i32, _: i32, _: i32) -> i32 {0}

@@ -2,8 +2,6 @@ extern crate rand;
 
 pub mod mep;
 pub use mep::*;
-pub mod nn;
-pub use nn::*;
 
 ///SISO is an algorithm that takes a static amount of inputs and produces a static number of outputs.
 pub trait SISO<'a, In, Out> {
