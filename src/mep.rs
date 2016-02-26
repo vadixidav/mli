@@ -59,7 +59,7 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2> {
                 .map(|(index, ins)| Opcode{
                         instruction: ins,
                         first: rng.gen_range(0, index + inputs),
-                        second: rng.gen_range(0, index + inputs)
+                        second: rng.gen_range(0, index + inputs),
                     }
                 ).collect(),
             unit_mutate_size: unit_mutate_size,
@@ -204,21 +204,29 @@ impl<'a, Ins, R, Param, F1, F2> ResultIterator<'a, Ins, R, Param, F1, F2>
     fn op_solved(&mut self, i: usize) -> Param {
         //If this is an input, it is already solved, so return the result immediately
         if i < self.mep.inputs {
-            return self.inputs[i].clone();
+            return unsafe{
+                self.inputs.get_unchecked(i)
+            }.clone();
         }
         //Check if this has been evaluated or not
-        let possible = self.buff[i - self.mep.inputs].clone();
+        let possible = unsafe{
+            self.buff.get_unchecked(i - self.mep.inputs)
+        }.clone();
         match possible {
             //If it has, return the value
             Some(x) => x,
             //If it hasnt been solved
             None => {
                 //Get a reference to the opcode
-                let op = &self.mep.program[i - self.mep.inputs];
+                let op = unsafe{
+                    self.mep.program.get_unchecked(i - self.mep.inputs)
+                };
                 //Compute the result of the operation, ensuring the inputs are solved beforehand
                 let result = (self.mep.processor)(&op.instruction, self.op_solved(op.first), self.op_solved(op.second));
                 //Properly store the Some result to the buffer
-                self.buff[i - self.mep.inputs] = Some(result.clone());
+                unsafe{
+                    *self.buff.get_unchecked_mut(i - self.mep.inputs) = Some(result.clone())
+                };
                 //Return the result
                 result
             }
