@@ -20,8 +20,8 @@ struct Opcode<Ins> {
 ///A multi-expression program represented using a series of operations that can reuse results of previous operations.
 pub struct Mep<Ins, R, Param, F1, F2> {
     program: Vec<Opcode<Ins>>,
-    unit_mutate_size: usize,
-    crossover_points: usize,
+    pub unit_mutate_size: usize,
+    pub crossover_points: usize,
     inputs: usize,
     outputs: usize,
     mutator: F1,
