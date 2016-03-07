@@ -83,9 +83,12 @@ impl<Ins, R, Param, F1, F2> Genetic<R> for Mep<Ins, R, Param, F1, F2>
         assert!(parents.0.outputs == parents.1.outputs);
         //Get the smallest of the two lengths
         let total_instructions = cmp::min(parents.0.program.len(), parents.1.program.len());
+        let crossover_choice = rng.gen_range(0, 2);
         Mep{program:
-            //Generate a randomly sized sequence between 1 and half of the total possible crossover points
-            (0..rng.gen_range(1, total_instructions / 2))
+            //Generate a randomly sized sequence between 1 and crossover_points
+            (0..rng.gen_range(1, cmp::min(total_instructions / 2, {
+                if crossover_choice == 0 {parents.0}
+                else {parents.1}}.crossover_points)))
             //Map these to random crossover points
             .map(|_| rng.gen_range(0, total_instructions))
             //Add total_instructions at the end so we can generate a range with it
