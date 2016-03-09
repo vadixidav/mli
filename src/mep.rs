@@ -160,7 +160,7 @@ impl<Ins, R, Param, F1, F2> Genetic<R> for Mep<Ins, R, Param, F1, F2>
         //Mutate the instructions using the mutator
         loop {
             //Choose a random location in the instructions and then add a random value up to the unit_mutate_size
-            let choice = rng.gen_range(0, self.program.len()) + rng.gen_range(0, self.unit_mutate_size);
+            let choice = rng.gen_range(0, self.program.len() + self.unit_mutate_size);
             //Whenever we choose a location outside the vector reject the choice and end mutation
             if choice >= self.program.len() {
                 break;
