@@ -52,16 +52,29 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2> {
     ///Rng, thus it is parameterized separately here.
     pub fn new<I, Rg>(inputs: usize, outputs: usize, unit_mutate_size: usize, crossover_points: usize, rng: &mut Rg,
         instruction_iter: I, mutator: F1, processor: F2) -> Self
-        where I: Iterator<Item=Ins>, Rg: Rng, F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param
+        where I: ExactSizeIterator<Item=Ins>, Rg: Rng, F1: Fn(&mut Ins, &mut R), F2: Fn(&Ins, Param, Param) -> Param
     {
+        let outputs_beginning = instruction_iter.len() - outputs;
         Mep{
             program: instruction_iter.enumerate()
-                .map(|(index, ins)| Opcode{
-                        instruction: ins,
-                        first: rng.gen_range(0, index + inputs),
-                        second: rng.gen_range(0, index + inputs),
+                .map(|(index, ins)|
+                    // For normal instructions previous outputs may be used.
+                    if index < outputs_beginning {
+                        Opcode{
+                            instruction: ins,
+                            first: rng.gen_range(0, index + inputs),
+                            second: rng.gen_range(0, index + inputs),
+                        }
+                    // An output should not be used as an input to another output.
+                    } else {
+                        Opcode{
+                            instruction: ins,
+                            first: rng.gen_range(0, outputs_beginning + inputs),
+                            second: rng.gen_range(0, outputs_beginning + inputs),
+                        }
                     }
-                ).collect(),
+                )
+                .collect(),
             unit_mutate_size: unit_mutate_size,
             crossover_points: crossover_points,
             inputs: inputs,
