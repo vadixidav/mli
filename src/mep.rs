@@ -6,6 +6,7 @@ use std::ops::Range;
 use std::iter::Rev;
 use super::{Genetic, SISO};
 use std::marker::PhantomData;
+use std::fmt::{self, Debug};
 
 /// Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
 /// previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
@@ -18,7 +19,6 @@ struct Opcode<Ins> {
 }
 
 /// A multi-expression program represented using a series of operations that can reuse results of previous operations.
-#[derive(Debug)]
 pub struct Mep<Ins, R, Param, F1, F2> {
     program: Vec<Opcode<Ins>>,
     pub unit_mutate_size: usize,
@@ -28,6 +28,27 @@ pub struct Mep<Ins, R, Param, F1, F2> {
     mutator: F1,
     processor: F2,
     _phantom: (PhantomData<R>, PhantomData<Param>),
+}
+
+impl<Ins, R, Param, F1, F2> Debug for Mep<Ins, R, Param, F1, F2>
+    where Ins: Debug
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // write!(f, "Mep{{ program: {}, unit_mutate_size: {}, crossover_points: {}, inputs: {}, outputs: {} }}", )
+        try!(write!(f, "Mep{{ program: ["));
+        if self.program.len() != 0 {
+            for op in &self.program[..self.program.len() - 1] {
+                try!(write!(f, "{:?}, ", op));
+            }
+            try!(write!(f, "{:?}", self.program.last().unwrap()));
+        }
+        write!(f,
+               "], unit_mutate_size: {}, crossover_points: {}, inputs: {}, outputs: {} }}",
+               self.unit_mutate_size,
+               self.crossover_points,
+               self.inputs,
+               self.outputs)
+    }
 }
 
 impl<Ins, R, Param, F1, F2> Clone for Mep<Ins, R, Param, F1, F2>
