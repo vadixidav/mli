@@ -18,8 +18,30 @@ struct Opcode<Ins> {
     second: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerialMep<Ins> {
+    program: Vec<Opcode<Ins>>,
+    unit_mutate_size: usize,
+    crossover_points: usize,
+    inputs: usize,
+    outputs: usize,
+}
+
+impl<'a, Ins, R, Param, F1, F2> From<&'a Mep<Ins, R, Param, F1, F2>> for SerialMep<Ins>
+    where Ins: Clone
+{
+    fn from(mep: &'a Mep<Ins, R, Param, F1, F2>) -> Self {
+        SerialMep {
+            program: mep.program.clone(),
+            unit_mutate_size: mep.unit_mutate_size,
+            crossover_points: mep.crossover_points,
+            inputs: mep.inputs,
+            outputs: mep.outputs,
+        }
+    }
+}
+
 /// A multi-expression program represented using a series of operations that can reuse results of previous operations.
-#[derive(Serialize, Deserialize)]
 pub struct Mep<Ins, R, Param, F1, F2> {
     program: Vec<Opcode<Ins>>,
     pub unit_mutate_size: usize,
@@ -113,6 +135,19 @@ impl<Ins, R, Param, F1, F2> Mep<Ins, R, Param, F1, F2> {
             crossover_points: crossover_points,
             inputs: inputs,
             outputs: outputs,
+            mutator: mutator,
+            processor: processor,
+            _phantom: (PhantomData, PhantomData),
+        }
+    }
+
+    pub fn new_from_serial_mep(smep: SerialMep<Ins>, mutator: F1, processor: F2) -> Self {
+        Mep {
+            program: smep.program,
+            unit_mutate_size: smep.unit_mutate_size,
+            crossover_points: smep.crossover_points,
+            inputs: smep.inputs,
+            outputs: smep.outputs,
             mutator: mutator,
             processor: processor,
             _phantom: (PhantomData, PhantomData),
