@@ -6,3 +6,9 @@ authors = ["Geordon Worley <vadixidav@gmail.com>"]
 [dependencies]
 rand = "0.3.13"
 num = "0.1.30"
+serde = "0.8"
+serde_json = "0.8"
+serde_macros = "0.8"
+
+[replace]
+"aster:0.26.1" = { git = "https://github.com/jchlapinski/aster" }

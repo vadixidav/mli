@@ -11,7 +11,7 @@ use std::fmt::{self, Debug};
 /// Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
 /// previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
 /// to the program, which sequentially preceed the internal instructions.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct Opcode<Ins> {
     instruction: Ins,
     first: usize,
@@ -19,6 +19,7 @@ struct Opcode<Ins> {
 }
 
 /// A multi-expression program represented using a series of operations that can reuse results of previous operations.
+#[derive(Serialize, Deserialize)]
 pub struct Mep<Ins, R, Param, F1, F2> {
     program: Vec<Opcode<Ins>>,
     pub unit_mutate_size: usize,
