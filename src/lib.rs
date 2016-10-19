@@ -8,48 +8,31 @@ extern crate rand;
 pub mod mep;
 pub use mep::*;
 
-/// SISO is an algorithm that takes a static amount of inputs and produces a static number of outputs.
-pub trait SISO<'a, In, Out> {
-    /// The iterator type returned from compute. Its lifetime is tied to self.
-    type Iter: Iterator<Item = Out> + 'a;
-    /// Compute is provided an input slice that must be the correct number of inputs and produces an
-    /// iterator that provides the static number of outputs.
-    fn compute(&'a self, inputs: &'a [In]) -> Self::Iter;
+/// Interface for algorithms which implement the capability to perform stateless computation.
+pub trait Stateless<'a, I, O> {
+    fn process(&'a self, input: I) -> O;
 }
 
-/// SIVO is an algorithm that takes a static amount of inputs and produces a variable number of outputs.
-pub trait SIVO<'a, In, Out> {
-    /// The iterator type returned from compute. Its lifetime is tied to self.
-    type Iter: Iterator<Item = Out> + 'a;
-    /// Compute is provided an input slice that must be the correct number of inputs along with the number of outputs.
-    /// It returns an iterator that provides the required number of outputs.
-    fn compute(&'a self, inputs: &'a [In], n_outputs: usize) -> Self::Iter;
+/// Interface for algorithms which implement the capability to perform stateful computation.
+pub trait Stateful<'a, I, O> {
+    fn process(&'a mut self, input: I) -> O;
 }
 
-/// VISO is an algorithm that takes a variable amount of inputs and produces a static number of outputs.
-pub trait VISO<'a, In, Out> {
-    /// The iterator type returned from compute. Its lifetime is tied to self.
-    type Iter: Iterator<Item = Out> + 'a;
-    /// Compute is provided an input slice that can be any number of inputs and produces an
-    /// iterator that provides the static number of outputs.
-    fn compute(&'a self, inputs: &'a [In]) -> Self::Iter;
+/// Any stateless algorithm can also be used in the same context as a stateful algorithm.
+impl<'a, I, O> Stateful<'a, I, O> for Stateless<'a, I, O> {
+    fn process(&'a mut self, input: I) -> O {
+        Stateless::process(self, input)
+    }
 }
 
-/// VIVO is an algorithm that takes a variable amount of inputs and produces a variable number of outputs.
-pub trait VIVO<'a, In, Out> {
-    /// The iterator type returned from compute. Its lifetime is tied to self.
-    type Iter: Iterator<Item = Out> + 'a;
-    /// Compute is provided an input slice that can be any number of inputs along with the number of outputs.
-    /// It returns an iterator that provides the required number of outputs.
-    fn compute(&'a self, inputs: &'a [In], n_outputs: usize) -> Self::Iter;
+/// Interface for algorithms which can be trained online.
+pub trait Online<S> {
+    fn learn_online(&mut self, set: S);
 }
 
-/// A learning algorithm is one that can be trained and performs computations.
-pub trait Learning<R, In, Out> {
-    /// Train requires inputs and outputs required by the system and an Rng to introduce randomness.
-    /// Level should scale linearly with the amount of time spent training and level 1 should represent the smallest
-    /// amount of training reasonably possible.
-    fn train(&mut self, level: u32, inputs: &[In], outputs: &[Out], rng: &mut R);
+/// Interface for algorithms which can be trained offline.
+pub trait Offline<S> {
+    fn learn_offline(&mut self, sets: S);
 }
 
 /// Genetic is a trait that allows genetic manipulation. Genetic algorithms require duplication, which is why
@@ -57,9 +40,9 @@ pub trait Learning<R, In, Out> {
 /// data when mating so that mating can happen randomly.
 ///
 /// Note: This API is highly likely to change before version 1.0.
-pub trait Genetic<R>: Clone {
+pub trait Genetic<R, M>: Clone {
     /// The mate function takes a tuple of two parent references and an Rng, then returns a new child.
-    fn mate(parents: (&Self, &Self), rng: &mut R) -> Self;
+    fn mate(&self, rhs: &Self, rng: &mut R) -> Self;
     /// The mutate function performs a unit mutation. A single, several, or no actual mutations may occour.
-    fn mutate(&mut self, rng: &mut R);
+    fn mutate(&mut self, mut mutator: M, rng: &mut R);
 }
