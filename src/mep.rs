@@ -360,12 +360,22 @@ mod tests {
     #[test]
     fn crossover() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
-        let (a, b) = {
-            let mut clos = || Mep::new(3, 1, 10, 10, &mut rng, 0..30, processor);
+        let (mut a, b) = {
+            let mut clos = || {
+                Mep::new(3,
+                         1,
+                         10,
+                         10,
+                         &mut rng,
+                         0..30,
+                         processor as fn(&i32, i32, i32) -> i32)
+            };
             (clos(), clos())
         };
         let old_rngs: Vec<_> = rng.clone().gen_iter::<i32>().take(5).collect();
-        let _: Mep<i32, i32, fn(&i32, i32, i32) -> i32> = a.mate(&b, &mut rng);
+        a.mutate(mutator as fn(&mut i32, &mut Isaac64Rng), &mut rng);
+        let _: Mep<i32, i32, fn(&i32, i32, i32) -> i32> =
+            <Mep<i32, i32, fn(&i32, i32, i32) -> i32> as Genetic<Isaac64Rng, fn(&mut i32, &mut Isaac64Rng)>>::mate(&a, &b, &mut rng);
         // Ensure that rng was used.
         assert!(rng.clone().gen_iter::<i32>().take(5).collect::<Vec<_>>() != old_rngs);
     }
