@@ -1,16 +1,15 @@
 extern crate num;
 use std::collections::BTreeSet;
 use std::cmp;
-use rand::Rng;
+use rand::{Rng, Rand};
 use std::ops::Range;
 use std::iter::Rev;
-use super::{Genetic, Stateless};
-use std::marker::PhantomData;
-use std::fmt::{self, Debug};
+use super::{Stateless, MateRand, Mutate};
 
-/// Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices. These specify which
-/// previous opcodes produced the result required as inputs to this opcode. These parameters can also come from the inputs
-/// to the program, which sequentially preceed the internal instructions.
+/// Defines an opcode for the Mep. Every opcode contains an instruction and two parameter indices.
+/// These specify which previous opcodes produced the result required as inputs to this opcode.
+/// These parameters can also come from the inputs to the program, which sequentially
+/// proceed the internal instructions.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct Opcode<Ins> {
     instruction: Ins,
@@ -18,142 +17,62 @@ struct Opcode<Ins> {
     second: usize,
 }
 
+/// A multi-expression program represented using a series of operations that can reuse
+/// results of previous operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerialMep<Ins> {
+pub struct Mep<Ins> {
     program: Vec<Opcode<Ins>>,
-    unit_mutate_size: usize,
+    mutate_lambda: usize,
     crossover_points: usize,
     inputs: usize,
     outputs: usize,
 }
 
-impl<'a, Ins, Param, F> From<&'a Mep<Ins, Param, F>> for SerialMep<Ins>
-    where Ins: Clone
-{
-    fn from(mep: &'a Mep<Ins, Param, F>) -> Self {
-        SerialMep {
-            program: mep.program.clone(),
-            unit_mutate_size: mep.unit_mutate_size,
-            crossover_points: mep.crossover_points,
-            inputs: mep.inputs,
-            outputs: mep.outputs,
-        }
-    }
-}
-
-/// A multi-expression program represented using a series of operations that can reuse results of previous operations.
-pub struct Mep<Ins, Param, F> {
-    program: Vec<Opcode<Ins>>,
-    unit_mutate_size: usize,
-    crossover_points: usize,
-    inputs: usize,
-    outputs: usize,
-    processor: F,
-    _phantom: PhantomData<Param>,
-}
-
-impl<Ins, Param, F> Debug for Mep<Ins, Param, F>
-    where Ins: Debug
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // write!(f, "Mep{{ program: {}, unit_mutate_size: {}, crossover_points: {}, inputs: {}, outputs: {} }}", )
-        try!(write!(f, "Mep{{ program: ["));
-        if self.program.len() != 0 {
-            for op in &self.program[..self.program.len() - 1] {
-                try!(write!(f, "{:?}, ", op));
-            }
-            try!(write!(f, "{:?}", self.program.last().unwrap()));
-        }
-        write!(f,
-               "], unit_mutate_size: {}, crossover_points: {}, inputs: {}, outputs: {} }}",
-               self.unit_mutate_size,
-               self.crossover_points,
-               self.inputs,
-               self.outputs)
-    }
-}
-
-impl<Ins, Param, F> Clone for Mep<Ins, Param, F>
-    where Ins: Clone,
-          F: Copy
-{
-    fn clone(&self) -> Self {
-        Mep {
-            program: self.program.clone(),
-            unit_mutate_size: self.unit_mutate_size,
-            crossover_points: self.crossover_points,
-            inputs: self.inputs,
-            outputs: self.outputs,
-            processor: self.processor,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<Ins, Param, F> Mep<Ins, Param, F> {
-    /// Generates a new Mep with a particular size and takes a closure to generate random instructions.
-    /// Takes an RNG as well to generate random internal data for each instruction. This Rng is different from the Mep's
-    /// Rng, thus it is parameterized separately here.
-    pub fn new<I, Rg>(inputs: usize,
+impl<Ins> Mep<Ins> {
+    /// Generates a new Mep with a particular size and takes a closure to generate random
+    /// instructions. Takes an RNG as well to generate random internal data for each instruction.
+    ///
+    /// `mutate_lambda` corresponds to the lambda of a poisson distribution. It is proportional
+    /// to the average unit mutate cycles between mutations. It is biased by 1, so a `mutate_lambda`
+    /// of 0 means it will be mutated every cycle.
+    ///
+    /// `crossover_points` corresponds to the maximum amount of crossover locations on the
+    /// chromosome when mating. When mating the `crossover_points` is chosen randomly between the
+    /// two Meps.
+    pub fn new<R>(inputs: usize,
                       outputs: usize,
-                      unit_mutate_size: usize,
+                        internal_instruction_count: usize,
+                     mutate_lambda: usize,
                       crossover_points: usize,
-                      rng: &mut Rg,
-                      instruction_iter: I,
-                      processor: F)
+                      rng: &mut R)
                       -> Self
-        where I: ExactSizeIterator<Item = Ins>,
-              Rg: Rng,
-              F: Fn(&Ins, Param, Param) -> Param
+        where R: Rng, Ins: Rand
     {
-        let outputs_beginning = instruction_iter.len() - outputs;
         Mep {
-            program: instruction_iter.enumerate()
-                .map(|(index, ins)|
-                    // For normal instructions previous outputs may be used.
-                    if index < outputs_beginning {
-                        Opcode{
-                            instruction: ins,
-                            first: rng.gen_range(0, index + inputs),
-                            second: rng.gen_range(0, index + inputs),
-                        }
-                    // An output should not be used as an input to another output.
-                    } else {
-                        Opcode{
-                            instruction: ins,
-                            first: rng.gen_range(0, outputs_beginning + inputs),
-                            second: rng.gen_range(0, outputs_beginning + inputs),
-                        }
-                    })
-                .collect(),
-            unit_mutate_size: unit_mutate_size,
+            program: (0..internal_instruction_count + outputs)
+                .map(|i| if i < internal_instruction_count {
+                    Opcode {
+                        instruction: rng.gen(),
+                        first: rng.gen_range(0, i + inputs),
+                        second: rng.gen_range(0, i + inputs),
+                    }
+                } else {
+                    Opcode {
+                        instruction: rng.gen(),
+                        first: rng.gen_range(0, internal_instruction_count + inputs),
+                        second: rng.gen_range(0, internal_instruction_count + inputs),
+                    }
+                }).collect(),
+            mutate_lambda: mutate_lambda,
             crossover_points: crossover_points,
             inputs: inputs,
             outputs: outputs,
-            processor: processor,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn new_from_serial_mep(smep: SerialMep<Ins>, processor: F) -> Self {
-        Mep {
-            program: smep.program,
-            unit_mutate_size: smep.unit_mutate_size,
-            crossover_points: smep.crossover_points,
-            inputs: smep.inputs,
-            outputs: smep.outputs,
-            processor: processor,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<Ins, Param, F, R, M> Genetic<R, M> for Mep<Ins, Param, F>
-    where R: Rng,
-          Ins: Clone,
-          Param: Clone,
-          F: Copy,
-          M: Fn(&mut Ins, &mut R)
+impl<Ins, R> MateRand<R> for Mep<Ins>
+    where R: Rng, Ins: Clone
 {
     fn mate(&self, rhs: &Self, rng: &mut R) -> Self {
         // Each Mep must have the same amount of inputs
@@ -163,34 +82,37 @@ impl<Ins, Param, F, R, M> Genetic<R, M> for Mep<Ins, Param, F>
         // Get the smallest of the two lengths
         let total_instructions = cmp::min(self.program.len(), rhs.program.len());
         let crossover_choice = rng.gen_range(0, 2);
-        Mep{program:
-            //Generate a randomly sized sequence between 1 and crossover_points
-            (0..rng.gen_range(1, cmp::min(total_instructions / 2, {
+        Mep {
+            program:
+                // Generate a randomly sized sequence between 1 and the minimum between
+                // `crossover_points` vs `total_instructions / 2`.
+                (0..rng.gen_range(1, cmp::min(total_instructions / 2, {
                 if crossover_choice == 0 {self}
-                else {rhs}}.crossover_points + 1)))
-            //Map these to random crossover points
-            .map(|_| rng.gen_range(0, total_instructions))
-            //Add total_instructions at the end so we can generate a range with it
-            .chain(Some(total_instructions))
-            //Sort them by value into BTree, which removes duplicates and orders them
-            .fold(BTreeSet::new(), |mut set, i| {set.insert(i); set})
-            //Iterate over the sorted values
-            .iter()
-            //Turn every copy of two, prepending a 0, into a range
-            .scan(0, |prev, x| {let out = Some(*prev..*x); *prev = *x; out})
-            //Enumerate by index to differentiate odd and even values
-            .enumerate()
-            //Map even pairs to ranges in parent 0 and odd ones to ranges in parent 1 and expand the ranges
-            .flat_map(|(index, range)| {
-                {if index % 2 == 0 {self} else {rhs}}.program[range].iter().cloned()
-            })
-            //Collect all the instruction ranges from each parent
-            .collect(),
+                    else {rhs}}.crossover_points + 1)))
+                // Map these to random crossover points.
+                .map(|_| rng.gen_range(0, total_instructions))
+                // Add total_instructions at the end so we can generate a range with it.
+                .chain(Some(total_instructions))
+                // Sort them by value into BTree, which removes duplicates and orders them.
+                .fold(BTreeSet::new(), |mut set, i| {set.insert(i); set})
+                // Iterate over the sorted values.
+                .iter()
+                // Turn every copy of two, prepending a 0, into a range.
+                .scan(0, |prev, x| {let out = Some(*prev..*x); *prev = *x; out})
+                // Enumerate by index to differentiate odd and even values.
+                .enumerate()
+                // Map even pairs to ranges in parent 0 and odd ones to ranges in
+                // parent 1 and expand the ranges.
+                .flat_map(|(index, range)| {
+                    {if index % 2 == 0 {self} else {rhs}}.program[range].iter().cloned()
+                })
+                // Collect all the instruction ranges from each parent.
+                .collect(),
 
-            unit_mutate_size: if self.unit_mutate_size < rhs.unit_mutate_size {
-                rng.gen_range(self.unit_mutate_size, rhs.unit_mutate_size + 1)
+            mutate_lambda: if self.mutate_lambda < rhs.mutate_lambda {
+                rng.gen_range(self.mutate_lambda, rhs.mutate_lambda + 1)
             } else {
-                rng.gen_range(rhs.unit_mutate_size, self.unit_mutate_size + 1)
+                rng.gen_range(rhs.mutate_lambda, self.mutate_lambda + 1)
             },
 
             crossover_points: if self.crossover_points < rhs.crossover_points {
@@ -201,75 +123,59 @@ impl<Ins, Param, F, R, M> Genetic<R, M> for Mep<Ins, Param, F>
 
             inputs: self.inputs,
             outputs: self.outputs,
-            processor: {if rng.gen_range(0, 2) == 0 {self} else {rhs}}.processor,
-            _phantom: PhantomData,
         }
     }
+}
 
-    /// The Mep mutate function operates using the unit_mutate_size. This variable specifies the amount of instructions
-    /// for which a single mutation is expect to occour every time mutate is called. This variable can be mutated inside
-    /// of mutate, in which case it may never go below 1, but may tend towards infinity in increments of 1. This variable
-    /// is implemented as a u64 to permit it to expand unbounded to mutation levels that are so low that mutations
-    /// virtually never happen. Allowing this to mutate allows species to find the equilibrium between genomic
-    /// adaptability and stability. If a species develops information gathering, then it can adapt intellegently, making
-    /// it possibly more beneficial to operate at lower mutation rates. Setting the default mutation rate for species
-    /// properly, or allowing it to adapt as the simulation continues, permits species to survive more frequently that
-    /// are randomly generated.
-    fn mutate(&mut self, mutator: M, rng: &mut R) {
-        // Mutate unit_mutate_size
-        if rng.gen_range(0, self.unit_mutate_size) == 0 {
-            // Make it possibly go up or down by 1
+impl<Ins, R> Mutate<R> for Mep<Ins>
+    where Ins: Mutate<R>, R: Rng
+{
+    fn mutate(&mut self, rng: &mut R) {
+        // For this entire cycle, the biased lambda from the previous cycle is effective.
+        let effective_lambda = self.mutate_lambda + 1;
+
+        // Mutate `mutate_lambda`.
+        if rng.gen_range(0, effective_lambda) == 0 {
+            // Make it possibly go up or down by 1.
             match rng.gen_range(0, 2) {
-                0 => self.unit_mutate_size += 1,
-                1 => {
-                    if self.unit_mutate_size > 1 {
-                        self.unit_mutate_size -= 1
-                    }
-                }
-                _ => unreachable!(),
-            }
-        }
-        // Mutate crossover_points
-        if rng.gen_range(0, self.unit_mutate_size) == 0 {
-            // Make it possibly go up or down by 1
-            match rng.gen_range(0, 2) {
-                0 => self.crossover_points += 1,
-                1 => {
-                    if self.crossover_points > 1 {
-                        self.crossover_points -= 1
-                    }
-                }
-                _ => unreachable!(),
+                0 => self.mutate_lambda = self.mutate_lambda.saturating_add(1),
+                _ => self.mutate_lambda = self.mutate_lambda.saturating_sub(1),
             }
         }
 
-        // Mutate the instructions using the mutator
+        // Mutate `crossover_points`.
+        if rng.gen_range(0, effective_lambda) == 0 {
+            // Make it possibly go up or down by 1.
+            match rng.gen_range(0, 2) {
+                0 => self.crossover_points = self.crossover_points.saturating_add(1),
+                _ => self.crossover_points = self.crossover_points.saturating_sub(1),
+            }
+        }
+
+        // Mutate the instructions.
         loop {
-            // Choose a random location in the instructions and then add a random value up to the unit_mutate_size
-            let choice = rng.gen_range(0, self.program.len() + self.unit_mutate_size);
-            // Whenever we choose a location outside the vector reject the choice and end mutation
+            // Choose a random location in the instructions and then add a random value.
+            // up to the unit_mutate_size.
+            let choice = rng.gen_range(0, self.program.len() + effective_lambda);
+            // Whenever we choose a location outside the vector reject the choice and end mutation.
             if choice >= self.program.len() {
                 break;
             }
             let op = &mut self.program[choice];
-            // Randomly mutate only one of the things contained here
+            // Randomly mutate only one of the things contained here.
             match rng.gen_range(0, 3) {
-                0 => mutator(&mut op.instruction, rng),
+                0 => op.instruction.mutate(rng),
                 1 => op.first = rng.gen_range(0, choice + self.inputs),
-                2 => op.second = rng.gen_range(0, choice + self.inputs),
-                _ => unreachable!(),
+                _ => op.second = rng.gen_range(0, choice + self.inputs),
             }
         }
     }
 }
 
-impl<'a, Ins: 'a, Param: 'a, F: 'a> Stateless<'a, &'a [Param], ResultIterator<'a, Ins, Param, F>> for Mep<Ins, Param, F>
-    where F: Fn(&Ins, Param, Param) -> Param,
-          Param: Clone
+impl<'a, Ins, Param> Stateless<'a, &'a [Param], ResultIterator<'a, Ins, Param>> for Mep<Ins>
+    where Param: Clone
 {
-    fn process(&'a self, inputs: &'a [Param]) -> ResultIterator<'a, Ins, Param, F> {
-// Ensure we have enough opcodes to produce the desired amount of outputs, otherwise the programmer has failed
-        assert!(self.outputs <= self.program.len());
+    fn process(&'a self, inputs: &'a [Param]) -> ResultIterator<'a, Ins, Param> {
         ResultIterator {
             mep: self,
             buff: vec![None; self.program.len()],
@@ -281,49 +187,51 @@ impl<'a, Ins: 'a, Param: 'a, F: 'a> Stateless<'a, &'a [Param], ResultIterator<'a
     }
 }
 
-pub struct ResultIterator<'a, Ins: 'a, Param: 'a, F: 'a> {
-    mep: &'a Mep<Ins, Param, F>,
+pub struct ResultIterator<'a, Ins, Param>
+    where Ins: 'a, Param: 'a
+{
+    mep: &'a Mep<Ins>,
     buff: Vec<Option<Param>>,
     solve_iter: Rev<Range<usize>>,
     inputs: &'a [Param],
 }
 
-impl<'a, Ins, Param, F> ResultIterator<'a, Ins, Param, F>
-    where F: Fn(&Ins, Param, Param) -> Param,
-          Param: Clone
-{
-    fn op_solved(&mut self, i: usize) -> Param {
-        // If this is an input, it is already solved, so return the result immediately
+impl<'a, Ins, Param> ResultIterator<'a, Ins, Param> {
+    #[inline]
+    fn op_solved(&mut self, i: usize) -> Param
+        where Param: Clone, Ins: Stateless<'a, (Param, Param), Param>
+    {
+        // If this is an input, it is already solved, so return the result immediately.
         if i < self.mep.inputs {
             return unsafe { self.inputs.get_unchecked(i) }.clone();
         }
-        // Check if this has been evaluated or not
+        // Check if this has been evaluated or not.
         let possible = unsafe { self.buff.get_unchecked(i - self.mep.inputs) }.clone();
         match possible {
-            // If it has, return the value
+            // If it has, return the value.
             Some(x) => x,
-            // If it hasnt been solved
+            // If it hasn't been solved.
             None => {
-                // Get a reference to the opcode
+                // Get a reference to the opcode.
                 let op = unsafe { self.mep.program.get_unchecked(i - self.mep.inputs) };
-                // Compute the result of the operation, ensuring the inputs are solved beforehand
-                let result = (self.mep.processor)(&op.instruction,
+                // Compute the result of the operation, ensuring the inputs are solved beforehand.
+                let result = op.instruction.process((
                                                   self.op_solved(op.first),
-                                                  self.op_solved(op.second));
-                // Properly store the Some result to the buffer
+                                                  self.op_solved(op.second)));
+                // Properly store the Some result to the buffer.
                 unsafe { *self.buff.get_unchecked_mut(i - self.mep.inputs) = Some(result.clone()) };
-                // Return the result
+                // Return the result.
                 result
             }
         }
     }
 }
 
-impl<'a, Ins, Param, F> Iterator for ResultIterator<'a, Ins, Param, F>
-    where F: Fn(&Ins, Param, Param) -> Param,
-          Param: Clone
+impl<'a, Ins, Param> Iterator for ResultIterator<'a, Ins, Param>
+    where Param: Clone, Ins: Stateless<'a, (Param, Param), Param>
 {
     type Item = Param;
+    #[inline]
     fn next(&mut self) -> Option<Param> {
         match self.solve_iter.next() {
             None => None,
@@ -334,58 +242,48 @@ impl<'a, Ins, Param, F> Iterator for ResultIterator<'a, Ins, Param, F>
 
 #[cfg(test)]
 mod tests {
-    use rand::{Isaac64Rng, SeedableRng, Rng};
+    use rand::{Isaac64Rng, SeedableRng, Rand};
     use super::*;
-    use super::super::{Genetic, Stateless};
+    use super::super::{MateRand, Mutate, Stateless};
 
-    fn mutator(_: &mut i32, _: &mut Isaac64Rng) {}
-    fn processor(_: &i32, _: i32, _: i32) -> i32 {
-        0
+    #[derive(Clone)]
+    struct Op;
+
+    impl<R> Mutate<R> for Op {
+        fn mutate(&mut self, _: &mut R) {
+        }
+    }
+
+    impl<'a> Stateless<'a, (i32, i32), i32> for Op {
+        fn process(&'a self, inputs: (i32, i32)) -> i32 {
+            inputs.0 + inputs.1
+        }
+    }
+
+    impl Rand for Op {
+        fn rand<R>(_: &mut R) -> Self {
+            Op
+        }
     }
 
     #[test]
-    fn new() {
-        let a = Mep::new(3,
-                         1,
-                         10,
-                         10,
-                         &mut Isaac64Rng::from_seed(&[1, 2, 3, 4]),
-                         0..30,
-                         processor);
-
-        assert_eq!(a.program.iter().map(|i| i.instruction).collect::<Vec<_>>(),
-                   (0..30).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn crossover() {
+    fn mep() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
         let (mut a, b) = {
             let mut clos = || {
-                Mep::new(3,
+                Mep::<Op>::new(3,
                          1,
+                    10,
                          10,
                          10,
-                         &mut rng,
-                         0..30,
-                         processor as fn(&i32, i32, i32) -> i32)
+                         &mut rng)
             };
             (clos(), clos())
         };
-        let old_rngs: Vec<_> = rng.clone().gen_iter::<i32>().take(5).collect();
-        a.mutate(mutator as fn(&mut i32, &mut Isaac64Rng), &mut rng);
-        let _: Mep<i32, i32, fn(&i32, i32, i32) -> i32> =
-            <Mep<i32, i32, fn(&i32, i32, i32) -> i32> as Genetic<Isaac64Rng, fn(&mut i32, &mut Isaac64Rng)>>::mate(&a, &b, &mut rng);
-        // Ensure that rng was used.
-        assert!(rng.clone().gen_iter::<i32>().take(5).collect::<Vec<_>>() != old_rngs);
-    }
+        a.mutate(&mut rng);
+        let c = a.mate(&b, &mut rng);
 
-    #[test]
-    fn compute() {
-        let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
-        let a = Mep::new(3, 1, 10, 10, &mut rng, 0..30, processor);
-
-        let inputs = [2, 3, 4];
-        assert_eq!(a.process(&inputs[..]).collect::<Vec<_>>(), [0]);
+        let inputs = [2i32, 3, 4];
+        c.process(&inputs[..]).collect::<Vec<_>>();
     }
 }

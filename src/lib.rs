@@ -1,8 +1,8 @@
-#![feature(custom_derive, plugin)]
-#![plugin(serde_macros)]
+#![feature(plugin)]
+#![feature(proc_macro)]
 
-extern crate serde;
-extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 extern crate rand;
 
 pub mod mep;
@@ -35,14 +35,30 @@ pub trait Offline<S> {
     fn learn_offline(&mut self, sets: S);
 }
 
-/// Genetic is a trait that allows genetic manipulation. Genetic algorithms require duplication, which is why
-/// there is a requirement for Clone. It is parameterized with an Rng (R) type so that the algorithms can extract random
-/// data when mating so that mating can happen randomly.
-///
-/// Note: This API is highly likely to change before version 1.0.
-pub trait Genetic<R, M>: Clone {
-    /// The mate function takes a tuple of two parent references and an Rng, then returns a new child.
+/// Things which can be mated.
+pub trait Mate {
+    /// The mate function takes two parent references and returns a new child.
+    fn mate(&self, rhs: &Self) -> Self;
+}
+
+/// Things which can be mated using a source of randomness.
+pub trait MateRand<R> {
+    /// The mate function takes two parent references and an Rng (`r`), then returns a new child.
+    /// So long as `r` is deterministic, the output is also deterministic as no other sources of
+    /// randomness are involved.
     fn mate(&self, rhs: &Self, rng: &mut R) -> Self;
-    /// The mutate function performs a unit mutation. A single, several, or no actual mutations may occour.
-    fn mutate(&mut self, mut mutator: M, rng: &mut R);
+}
+
+impl<R, M> MateRand<R> for M
+    where M: Mate
+{
+    fn mate(&self, rhs: &Self, _: &mut R) -> Self {
+        M::mate(self, rhs)
+    }
+}
+
+/// Things which can be mutated.
+pub trait Mutate<R> {
+    /// Perform a unit mutation.
+    fn mutate(&mut self, rng: &mut R);
 }
