@@ -40,13 +40,14 @@ impl<Ins> Mep<Ins> {
     /// chromosome when mating. When mating the `crossover_points` is chosen randomly between the
     /// two Meps.
     pub fn new<R>(inputs: usize,
-                      outputs: usize,
-                        internal_instruction_count: usize,
-                     mutate_lambda: usize,
-                      crossover_points: usize,
-                      rng: &mut R)
-                      -> Self
-        where R: Rng, Ins: Rand
+                  outputs: usize,
+                  internal_instruction_count: usize,
+                  mutate_lambda: usize,
+                  crossover_points: usize,
+                  rng: &mut R)
+                  -> Self
+        where R: Rng,
+              Ins: Rand
     {
         Mep {
             program: (0..internal_instruction_count + outputs)
@@ -62,7 +63,8 @@ impl<Ins> Mep<Ins> {
                         first: rng.gen_range(0, internal_instruction_count + inputs),
                         second: rng.gen_range(0, internal_instruction_count + inputs),
                     }
-                }).collect(),
+                })
+                .collect(),
             mutate_lambda: mutate_lambda,
             crossover_points: crossover_points,
             inputs: inputs,
@@ -72,7 +74,8 @@ impl<Ins> Mep<Ins> {
 }
 
 impl<Ins, R> MateRand<R> for Mep<Ins>
-    where R: Rng, Ins: Clone
+    where R: Rng,
+          Ins: Clone
 {
     fn mate(&self, rhs: &Self, rng: &mut R) -> Self {
         // Each Mep must have the same amount of inputs
@@ -128,7 +131,8 @@ impl<Ins, R> MateRand<R> for Mep<Ins>
 }
 
 impl<Ins, R> Mutate<R> for Mep<Ins>
-    where Ins: Mutate<R>, R: Rng
+    where Ins: Mutate<R>,
+          R: Rng
 {
     fn mutate(&mut self, rng: &mut R) {
         // For this entire cycle, the biased lambda from the previous cycle is effective.
@@ -188,7 +192,8 @@ impl<'a, Ins, Param> Stateless<'a, &'a [Param], ResultIterator<'a, Ins, Param>> 
 }
 
 pub struct ResultIterator<'a, Ins, Param>
-    where Ins: 'a, Param: 'a
+    where Ins: 'a,
+          Param: 'a
 {
     mep: &'a Mep<Ins>,
     buff: Vec<Option<Param>>,
@@ -199,7 +204,8 @@ pub struct ResultIterator<'a, Ins, Param>
 impl<'a, Ins, Param> ResultIterator<'a, Ins, Param> {
     #[inline]
     fn op_solved(&mut self, i: usize) -> Param
-        where Param: Clone, Ins: Stateless<'a, (Param, Param), Param>
+        where Param: Clone,
+              Ins: Stateless<'a, (Param, Param), Param>
     {
         // If this is an input, it is already solved, so return the result immediately.
         if i < self.mep.inputs {
@@ -215,9 +221,8 @@ impl<'a, Ins, Param> ResultIterator<'a, Ins, Param> {
                 // Get a reference to the opcode.
                 let op = unsafe { self.mep.program.get_unchecked(i - self.mep.inputs) };
                 // Compute the result of the operation, ensuring the inputs are solved beforehand.
-                let result = op.instruction.process((
-                                                  self.op_solved(op.first),
-                                                  self.op_solved(op.second)));
+                let result = op.instruction
+                    .process((self.op_solved(op.first), self.op_solved(op.second)));
                 // Properly store the Some result to the buffer.
                 unsafe { *self.buff.get_unchecked_mut(i - self.mep.inputs) = Some(result.clone()) };
                 // Return the result.
@@ -228,7 +233,8 @@ impl<'a, Ins, Param> ResultIterator<'a, Ins, Param> {
 }
 
 impl<'a, Ins, Param> Iterator for ResultIterator<'a, Ins, Param>
-    where Param: Clone, Ins: Stateless<'a, (Param, Param), Param>
+    where Param: Clone,
+          Ins: Stateless<'a, (Param, Param), Param>
 {
     type Item = Param;
     #[inline]
@@ -250,8 +256,7 @@ mod tests {
     struct Op;
 
     impl<R> Mutate<R> for Op {
-        fn mutate(&mut self, _: &mut R) {
-        }
+        fn mutate(&mut self, _: &mut R) {}
     }
 
     impl<'a> Stateless<'a, (i32, i32), i32> for Op {
@@ -270,14 +275,7 @@ mod tests {
     fn mep() {
         let mut rng = Isaac64Rng::from_seed(&[1, 2, 3, 4]);
         let (mut a, b) = {
-            let mut clos = || {
-                Mep::<Op>::new(3,
-                         1,
-                    10,
-                         10,
-                         10,
-                         &mut rng)
-            };
+            let mut clos = || Mep::<Op>::new(3, 1, 10, 10, 10, &mut rng);
             (clos(), clos())
         };
         a.mutate(&mut rng);
