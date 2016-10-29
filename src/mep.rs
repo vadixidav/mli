@@ -156,21 +156,34 @@ impl<Ins, R> Mutate<R> for Mep<Ins>
             }
         }
 
+        // Get the program length.
+        let plen = self.program.len();
+
         // Mutate the instructions.
         loop {
             // Choose a random location in the instructions and then add a random value.
             // up to the unit_mutate_size.
-            let choice = rng.gen_range(0, self.program.len() + effective_lambda);
+            let choice = rng.gen_range(0, plen + effective_lambda);
             // Whenever we choose a location outside the vector reject the choice and end mutation.
-            if choice >= self.program.len() {
+            if choice >= plen {
                 break;
             }
             let op = &mut self.program[choice];
             // Randomly mutate only one of the things contained here.
             match rng.gen_range(0, 3) {
                 0 => op.instruction.mutate(rng),
-                1 => op.first = rng.gen_range(0, choice + self.inputs),
-                _ => op.second = rng.gen_range(0, choice + self.inputs),
+                1 => op.first = if choice > plen  - self.outputs {
+                    // Handle the case where an output is selected.
+                    rng.gen_range(0, choice + plen  - self.outputs)
+                } else {
+                    rng.gen_range(0, choice + self.inputs)
+                },
+                _ => op.second = if choice > plen  - self.outputs {
+                    // Handle the case where an output is selected.
+                    rng.gen_range(0, choice + plen  - self.outputs)
+                } else {
+                    rng.gen_range(0, choice + self.inputs)
+                },
             }
         }
     }
