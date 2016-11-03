@@ -1,13 +1,3 @@
-#![feature(plugin)]
-#![feature(proc_macro)]
-
-#[macro_use]
-extern crate serde_derive;
-extern crate rand;
-
-pub mod mep;
-pub use mep::*;
-
 /// Interface for algorithms which implement the capability to perform stateless computation.
 pub trait Stateless<'a, I, O> {
     fn process(&'a self, input: I) -> O;
