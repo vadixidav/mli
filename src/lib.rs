@@ -1,3 +1,5 @@
+#![no_std]
+
 /// Interface for algorithms which implement the capability to perform stateless computation.
 pub trait Stateless<'a, I, O> {
     fn process(&'a self, input: I) -> O;
