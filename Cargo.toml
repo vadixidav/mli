@@ -1,8 +1,8 @@
 [package]
 name = "mli"
-version = "0.9.0"
+version = "0.9.1"
 description = "Machine Learning Interface for Rust"
-documentation = "https://docs.rs/mli/0.9.0/mli/"
+documentation = "https://docs.rs/mli/0.9.1/mli/"
 repository = "https://github.com/vadixidav/mli"
 authors = ["Geordon Worley <vadixidav@gmail.com>"]
 keywords = ["mli", "learning", "machine", "algorithm", "genetic"]
