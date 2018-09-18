@@ -19,3 +19,13 @@
 //! and nalgebra is updated to use it, this library will continue to be in an unstable state.
 
 #![no_std]
+
+/// This trait is implemented by algorithms that back-propogate `In` into `Out`.
+trait Backward<In, Out> {
+    fn backward(&self, input: In) -> Out;
+}
+
+/// This trait is implemented by algorithms that forward-propogate `In` into `Out`.
+trait Forward<In, Out> {
+    fn forward(&self, input: In) -> Out;
+}
