@@ -20,12 +20,16 @@
 
 #![no_std]
 
-/// This trait is implemented by algorithms that back-propogate `In` into `Out`.
-trait Backward<In, Out> {
-    fn backward(&self, input: In) -> Out;
+/// This trait can be thought of as `df/dx`, where `input` is `x`.
+pub trait Backward<In> {
+    type Delta;
+
+    fn backward(&self, input: In) -> Self::Delta;
 }
 
-/// This trait is implemented by algorithms that forward-propogate `In` into `Out`.
-trait Forward<In, Out> {
-    fn forward(&self, input: In) -> Out;
+/// This trait can be thought of as `f(x)` where `input` is `x`.
+pub trait Forward<In> {
+    type Out;
+
+    fn forward(&self, input: In) -> Self::Out;
 }

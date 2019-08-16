@@ -1,0 +1,9 @@
+[package]
+name = "mli-relu"
+version = "0.1.0"
+authors = ["Geordon Worley <vadixidav@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+mli = { path = "../mli" }
+float-ord = "0.2.0"
