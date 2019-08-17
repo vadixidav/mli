@@ -26,10 +26,9 @@
 /// If training is not possible, this trait can still be implemented with those definitions
 /// being empty. In that case, machine learning algorithms will still be able to back propogate
 /// over this operation, but training it will be a no-op.
-pub trait Backward<I>: Forward<I> {
+pub trait Backward: Forward {
     type InputDerivative;
     type InternalDerivative;
-    type Error;
 
     /// `partials` produces the partial derivatives `df/dx` and `df/dv` where:
     ///
@@ -38,7 +37,7 @@ pub trait Backward<I>: Forward<I> {
     /// - `v` is the internal variables
     ///
     /// Either of these can be an approximation, particularly if the function is not differentiable.
-    fn partials(&self, input: I) -> (Self::InputDerivative, Self::InternalDerivative);
+    fn partials(&self, input: Self::Input) -> (Self::InputDerivative, Self::InternalDerivative);
 
     /// `train` takes in `dfdv`, `dedf`, and `rate` where:
     ///
@@ -47,27 +46,50 @@ pub trait Backward<I>: Forward<I> {
     /// - `f` is the output
     /// - `E` is the error
     /// - `v` is the internal variables
-    fn train(&mut self, dfdv: Self::InternalDerivative, dedf: Self::Error, rate: f32);
+    fn train(&mut self, dfdv: Self::InternalDerivative, dedf: Self::Output, rate: f32);
 
     /// `partial_input` produces the partial derivative `df/dx`.
     ///
     /// See `partials` for more information.
-    fn partial_input(&self, input: I) -> Self::InputDerivative {
+    fn partial_input(&self, input: Self::Input) -> Self::InputDerivative {
         self.partials(input).0
     }
 
     /// `partial_internal` produces the partial derivative `df/dv`.
     ///
     /// See `partials` for more information.
-    fn partial_internal(&self, input: I) -> Self::InternalDerivative {
+    fn partial_internal(&self, input: Self::Input) -> Self::InternalDerivative {
         self.partials(input).1
     }
 }
 
+pub trait Static: Forward {
+    type Derivative;
+
+    /// `partial` produces the partial derivative `df/dx`
+    /// where `f` is the output and `x` in the `input`.
+    fn partial(&self, input: Self::Input) -> Self::Derivative;
+}
+
+impl<T> Backward for T
+where
+    T: Static,
+{
+    type InputDerivative = T::Derivative;
+    type InternalDerivative = ();
+
+    fn partials(&self, input: Self::Input) -> (Self::InputDerivative, Self::InternalDerivative) {
+        (self.partial(input), ())
+    }
+
+    fn train(&mut self, _: Self::InternalDerivative, _: Self::Output, _: f32) {}
+}
+
 /// This trait is for algorithms that have an input and produce an output.
-pub trait Forward<I> {
-    type O;
+pub trait Forward {
+    type Input;
+    type Output;
 
     /// `forward` produces the output `f` given an `input`.
-    fn forward(&self, input: I) -> Self::O;
+    fn forward(&self, input: Self::Input) -> Self::Output;
 }
