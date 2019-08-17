@@ -8,7 +8,7 @@ fn sigmoid(n: f32) -> f32 {
 pub struct Relu;
 
 impl Forward<f32> for Relu {
-    type Out = f32;
+    type O = f32;
 
     fn forward(&self, input: f32) -> f32 {
         std::cmp::max(FloatOrd(0.0), FloatOrd(input)).0
@@ -18,17 +18,21 @@ impl Forward<f32> for Relu {
 pub struct ReluSoftplus;
 
 impl Forward<f32> for ReluSoftplus {
-    type Out = f32;
+    type O = f32;
 
     fn forward(&self, input: f32) -> f32 {
-        std::cmp::max(FloatOrd(0.0), FloatOrd(input)).0
+        Relu.forward(input)
     }
 }
 
 impl Backward<f32> for ReluSoftplus {
-    type Delta = f32;
+    type InputDerivative = f32;
+    type InternalDerivative = ();
+    type Error = f32;
 
-    fn backward(&self, input: f32) -> f32 {
-        sigmoid(input)
+    fn partials(&self, input: f32) -> (Self::InputDerivative, Self::InternalDerivative) {
+        (sigmoid(input), ())
     }
+
+    fn train(&mut self, _: Self::InternalDerivative, _: Self::Error, _: f32) {}
 }

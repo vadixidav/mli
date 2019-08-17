@@ -20,16 +20,54 @@
 
 #![no_std]
 
-/// This trait can be thought of as `df/dx`, where `input` is `x`.
-pub trait Backward<In> {
-    type Delta;
+/// This trait indicates support of backwards propogation.
+///
+/// This trait also contains methods to perform training if training is possible.
+/// If training is not possible, this trait can still be implemented with those definitions
+/// being empty. In that case, machine learning algorithms will still be able to back propogate
+/// over this operation, but training it will be a no-op.
+pub trait Backward<I>: Forward<I> {
+    type InputDerivative;
+    type InternalDerivative;
+    type Error;
 
-    fn backward(&self, input: In) -> Self::Delta;
+    /// `partials` produces the partial derivatives `df/dx` and `df/dv` where:
+    ///
+    /// - `f` is the output
+    /// - `x` is the input
+    /// - `v` is the internal variables
+    ///
+    /// Either of these can be an approximation, particularly if the function is not differentiable.
+    fn partials(&self, input: I) -> (Self::InputDerivative, Self::InternalDerivative);
+
+    /// `train` takes in `dfdv`, `dedf`, and `rate` where:
+    ///
+    /// - `dfdv` is the partial derivative `df/dv`
+    /// - `dedf` is the partial derivative `dE/df`
+    /// - `f` is the output
+    /// - `E` is the error
+    /// - `v` is the internal variables
+    fn train(&mut self, dfdv: Self::InternalDerivative, dedf: Self::Error, rate: f32);
+
+    /// `partial_input` produces the partial derivative `df/dx`.
+    ///
+    /// See `partials` for more information.
+    fn partial_input(&self, input: I) -> Self::InputDerivative {
+        self.partials(input).0
+    }
+
+    /// `partial_internal` produces the partial derivative `df/dv`.
+    ///
+    /// See `partials` for more information.
+    fn partial_internal(&self, input: I) -> Self::InternalDerivative {
+        self.partials(input).1
+    }
 }
 
-/// This trait can be thought of as `f(x)` where `input` is `x`.
-pub trait Forward<In> {
-    type Out;
+/// This trait is for algorithms that have an input and produce an output.
+pub trait Forward<I> {
+    type O;
 
-    fn forward(&self, input: In) -> Self::Out;
+    /// `forward` produces the output `f` given an `input`.
+    fn forward(&self, input: I) -> Self::O;
 }
