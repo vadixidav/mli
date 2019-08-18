@@ -1,5 +1,5 @@
 [package]
-name = "image"
+name = "sobel"
 version = "0.1.0"
 authors = ["Geordon Worley <vadixidav@gmail.com>"]
 edition = "2018"
@@ -11,3 +11,4 @@ structopt = "0.2.18"
 image = "0.22.1"
 ndarray = "0.12.1"
 num = "0.2.0"
+ndarray-image = "0.1.0"

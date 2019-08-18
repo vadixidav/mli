@@ -4,5 +4,5 @@ members = [
     "mli",
     "mli-relu",
     "mli-conv",
-    "examples/image",
+    "examples/sobel",
 ]
