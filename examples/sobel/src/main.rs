@@ -31,8 +31,8 @@ fn main() {
     fn sqrt(f: &f32) -> f32 {
         f.sqrt()
     }
-    let down = Conv2(down_filter).forward(image.clone());
-    let right = Conv2(right_filter).forward(image.clone());
+    let down = Conv2(down_filter).forward(&image.view()).1;
+    let right = Conv2(right_filter).forward(&image.view()).1;
     let image = (down.map(square) + right.map(square)).map(sqrt);
     let image = image.map(|&n| num::clamp(n, 0.0, 255.0) as u8);
     let image: Option<ImgLuma> = NdImage(image.view()).into();

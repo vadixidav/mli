@@ -5,32 +5,35 @@ fn sigmoid(n: f32) -> f32 {
     (1.0 + n.exp()).recip()
 }
 
-pub struct Relu;
-
-impl Forward for Relu {
-    type Input = f32;
-    type Output = f32;
-
-    fn forward(&self, input: f32) -> f32 {
-        std::cmp::max(FloatOrd(0.0), FloatOrd(input)).0
-    }
+fn relu(n: f32) -> f32 {
+    std::cmp::max(FloatOrd(0.0), FloatOrd(n)).0
 }
 
 pub struct ReluSoftplus;
 
-impl Forward for ReluSoftplus {
-    type Input = f32;
+impl Forward<f32> for ReluSoftplus {
+    type Internal = ();
     type Output = f32;
 
-    fn forward(&self, input: f32) -> f32 {
-        Relu.forward(input)
+    fn forward(&self, &input: &f32) -> ((), f32) {
+        ((), relu(input))
     }
 }
 
-impl Static for ReluSoftplus {
-    type Derivative = f32;
+impl Backward<f32, f32> for ReluSoftplus {
+    type InputDelta = f32;
+    type TrainDelta = ();
 
-    fn partial(&self, input: f32) -> f32 {
-        sigmoid(input)
+    fn backward(
+        &self,
+        &input: &f32,
+        _: &(),
+        &output_delta: &f32,
+    ) -> (Self::InputDelta, Self::TrainDelta) {
+        (sigmoid(input) * output_delta, ())
     }
+}
+
+impl Train<f32, f32> for ReluSoftplus {
+    fn train(&mut self, _: &Self::TrainDelta) {}
 }
