@@ -37,7 +37,7 @@ impl Backward<Array2<f32>, Array2<f32>> for Conv2 {
     fn backward(
         &self,
         input: &Array2<f32>,
-        internal: &Self::Internal,
+        _: &Self::Internal,
         output_delta: &Array2<f32>,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         // To compute the `input_delta`, we need to convolve the filter flipped across all its axes with
@@ -53,14 +53,18 @@ impl Backward<Array2<f32>, Array2<f32>> for Conv2 {
         let pad_dims = (input.shape()[0] + padding.0, input.shape()[1] + padding.1);
         let mut pad = Array::zeros(pad_dims);
         pad.slice_mut(s![
-            padding.0 as i32..-(padding.0 as i32),
-            padding.1 as i32..-(padding.1 as i32)
+            padding.0 as i32 / 2..-(padding.0 as i32) / 2,
+            padding.1 as i32 / 2..-(padding.1 as i32) / 2
         ])
         .assign(output_delta);
         let input_delta = convolve(pad.view(), filter.slice(s![..;-1,..;-1]));
-        (
-            input_delta.clone(),
-            unimplemented!("train data not yet computed"),
-        )
+
+        let train_delta = input
+            .windows(filter_dims)
+            .into_iter()
+            .zip(output_delta.iter())
+            .map(|(view, &delta)| (view.to_owned() * delta))
+            .fold(Array2::zeros(filter_dims), |acc, item| acc + item);
+        (input_delta, train_delta)
     }
 }
