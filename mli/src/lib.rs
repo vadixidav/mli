@@ -49,7 +49,7 @@
 //! in multiple threads. We can then sum all of the deltas from the threads when they are done and then
 //! update the `Graph`, which is no longer borrowed.
 //!
-//! Currently there are four main traits:
+//! Currently there are three main traits:
 //! - [`Forward`]
 //!     - Implemented on anything that can go into a forward graph.
 //!     - Outputs intermediary computations (to compute gradients later) and final output.
@@ -64,21 +64,21 @@
 //!     - Uses the change to update the trainable variables.
 //!         - Change can be normalized across a mini-batch before being passed.
 //!     - Implemented on the `mutable` version of the graph.
-//! - [`Static`]
-//!     - Implemented on any operation (or graph) which has no trainable variables inside.
-//!     - Just needs to propogate the gradients from
 
 #![no_std]
 
+mod chain;
+pub use chain::*;
+
 /// This trait is for algorithms that have an input and produce an output.
 pub trait Forward<Input> {
-    type Output;
     type Internal;
+    type Output;
 
     /// `forward` produces:
     /// - All intermediary values produced, which can be reused in the back propogation step
     /// - The output `f` given an `input`
-    fn forward(&self, input: Input) -> (Self::Internal, Self::Output);
+    fn forward(&self, input: &Input) -> (Self::Internal, Self::Output);
 }
 
 /// This trait indicates support of backwards propogation.
@@ -106,31 +106,31 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
     ///
     /// `𝛿f/𝛿x` and `𝛿f/𝛿v` can be an approximation, particularly if the function is not differentiable
     /// (e.g. ReLU and signum).
-    fn backwards(
+    fn backward(
         &self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
+        input: &Input,
+        internal: &Self::Internal,
+        output_delta: &OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta);
 
     /// See [`Backward::partials`] for documentation.
-    fn backwards_input(
+    fn backward_input(
         &self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
+        input: &Input,
+        internal: &Self::Internal,
+        output_delta: &OutputDelta,
     ) -> Self::InputDelta {
-        self.backwards(input, internal, output_delta).0
+        self.backward(input, internal, output_delta).0
     }
 
     /// See [`Backward::partials`] for documentation.
-    fn backwards_train(
+    fn backward_train(
         &self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
+        input: &Input,
+        internal: &Self::Internal,
+        output_delta: &OutputDelta,
     ) -> Self::TrainDelta {
-        self.backwards(input, internal, output_delta).1
+        self.backward(input, internal, output_delta).1
     }
 }
 
@@ -151,7 +151,7 @@ pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
     /// `train` takes in a train delta `Δv` and applies it to the trained variables.
     ///
     /// This should effectively perform `v += Δv`.
-    fn train(&mut self, train_delta: Self::TrainDelta);
+    fn train(&mut self, train_delta: &Self::TrainDelta);
 
     /// `propogate` should have the same effect as running `backwards` followed by `train`.
     ///
@@ -161,50 +161,20 @@ pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
     /// If an implementation can do this efficiently, it should create a custom implemenatation.
     fn propogate(
         &mut self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
+        input: &Input,
+        internal: &Self::Internal,
+        output_delta: &OutputDelta,
     ) -> Self::InputDelta {
-        let (input_delta, train_delta) = self.backwards(input, internal, output_delta);
-        self.train(train_delta);
+        let (input_delta, train_delta) = self.backward(input, internal, output_delta);
+        self.train(&train_delta);
         input_delta
     }
 }
 
-pub trait Static<Input, OutputDelta>: Forward<Input> {
-    type InputDelta;
-    /// `static_propogate` produces the change required in the input.
-    ///
-    /// See the docs for [`Backward::propagate`] to see how to implement this.
-    /// You only need to return `Δx` for this propogate since there are no trainable variables.
-    fn static_propogate(
-        &self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
-    ) -> Self::InputDelta;
-}
-
-impl<T, Input, OutputDelta> Backward<Input, OutputDelta> for T
-where
-    T: Static<Input, OutputDelta>,
-{
-    type InputDelta = <Self as Static<Input, OutputDelta>>::InputDelta;
-    type TrainDelta = ();
-
-    fn backwards(
-        &self,
-        input: Input,
-        internal: Self::Internal,
-        output_delta: OutputDelta,
-    ) -> (Self::InputDelta, Self::TrainDelta) {
-        (self.static_propogate(input, internal, output_delta), ())
+trait Graph<Input, OutputDelta>: Train<Input, OutputDelta> + Sized {
+    fn chain<U>(self, other: U) -> Chain<Self, U> {
+        Chain(self, other)
     }
 }
 
-impl<T, Input, OutputDelta> Train<Input, OutputDelta> for T
-where
-    T: Static<Input, OutputDelta>,
-{
-    fn train(&mut self, _: Self::TrainDelta) {}
-}
+impl<T, Input, OutputDelta> Graph<Input, OutputDelta> for T where T: Train<Input, OutputDelta> {}
