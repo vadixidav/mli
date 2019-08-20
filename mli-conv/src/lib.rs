@@ -68,3 +68,9 @@ impl Backward<Array2<f32>, Array2<f32>> for Conv2 {
         (input_delta, train_delta)
     }
 }
+
+impl Train<Array2<f32>, Array2<f32>> for Conv2 {
+    fn train(&mut self, train_delta: &Self::TrainDelta) {
+        self.0 += train_delta;
+    }
+}
