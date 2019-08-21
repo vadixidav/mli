@@ -18,6 +18,7 @@ fn convolve<'a>(signal: ArrayView2<'a, f32>, filter: ArrayView2<'a, f32>) -> Arr
     .expect("convolution produced incorrectly sized output")
 }
 
+#[derive(Clone, Debug)]
 pub struct Conv2(pub Array2<f32>);
 
 impl Forward<Array2<f32>> for Conv2 {
@@ -50,7 +51,10 @@ impl Backward<Array2<f32>, Array2<f32>> for Conv2 {
             unimplemented!("mli-conv: filter dimensions of 1 not implemented yet");
         }
         let padding = (2 * (filter_dims[0] - 1), 2 * (filter_dims[1] - 1));
-        let pad_dims = (input.shape()[0] + padding.0, input.shape()[1] + padding.1);
+        let pad_dims = (
+            output_delta.shape()[0] + padding.0,
+            output_delta.shape()[1] + padding.1,
+        );
         let mut pad = Array::zeros(pad_dims);
         pad.slice_mut(s![
             padding.0 as i32 / 2..-(padding.0 as i32) / 2,

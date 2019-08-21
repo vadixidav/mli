@@ -1,7 +1,7 @@
 use image::ImageResult;
-use mli::{Forward, Train};
+use mli::{Forward, Graph, Train};
 use mli_conv::Conv2;
-use ndarray::{array, Array2};
+use ndarray::{array, s, Array2};
 use ndarray_image::{open_gray_image, save_gray_image};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -9,12 +9,15 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "image", about = "Loads and convolves an image as a test")]
 struct Opt {
-    /// Number of training runs
+    /// Number of epochs
     #[structopt(short = "t", default_value = "50")]
-    train_runs: usize,
+    epochs: usize,
     /// Learning rate
-    #[structopt(short = "l", default_value = "0.001")]
-    learning_rate: f32,
+    #[structopt(short = "i", default_value = "0.000000000001")]
+    initial_learning_rate: f32,
+    /// Learning rate after epoch
+    #[structopt(short = "l", default_value = "0.000000001")]
+    learning_rate_after_10: f32,
     /// File to load
     #[structopt(parse(from_os_str))]
     file: PathBuf,
@@ -51,13 +54,25 @@ fn main() -> ImageResult<()> {
     let opt = Opt::from_args();
     let image = open_image(opt.file)?;
     let sobel_image = sobel(&image);
-    let mut train_filter = Conv2(array![[1.5, -2.0, 0.1], [1.0, 0.5, 0.4], [1.4, 1.1, -1.2]]);
-    for i in 0..opt.train_runs {
+    save_image(opt.output_dir.join("actual.png"), &sobel_image)?;
+    let mut train_filter = Conv2(array![[-1.0, -1.0, -1.0], [0.0, 1.0, 0.0], [1.0, 1.0, 1.0]])
+        .chain(Conv2(array![
+            [-1.0, 0.0, 1.0],
+            [-1.0, 1.0, 1.0],
+            [-1.0, 0.0, 1.0]
+        ]));
+    let expected = sobel_image.slice(s![1..-1, 1..-1]);
+    for i in 0..opt.epochs {
         let (internal, output) = train_filter.forward(&image);
         save_image(opt.output_dir.join(format!("iteration{}.png", i)), &output)?;
+        eprintln!("{:?}", train_filter);
         // The loss function is (n - t)^2, so 2*(n - t) is dE/df where
         // `E` is loss and `f` is output.
-        let output_delta = -opt.learning_rate * (output - sobel_image.view()).map(|n| 2.0 * n);
+        let output_delta = -if i < 10 {
+            opt.initial_learning_rate
+        } else {
+            opt.learning_rate_after_10
+        } * (output - expected).map(|n| 2.0 * n);
         train_filter.propogate(&image, &internal, &output_delta);
     }
     Ok(())

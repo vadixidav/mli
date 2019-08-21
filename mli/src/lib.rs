@@ -171,7 +171,7 @@ pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
     }
 }
 
-trait Graph<Input, OutputDelta>: Train<Input, OutputDelta> + Sized {
+pub trait Graph<Input, OutputDelta>: Train<Input, OutputDelta> + Sized {
     fn chain<U>(self, other: U) -> Chain<Self, U> {
         Chain(self, other)
     }
