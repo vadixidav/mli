@@ -1,5 +1,5 @@
 use mli::*;
-pub use ndarray::{azip, s, Array, Array2, ArrayView2};
+pub use ndarray::{s, Array, Array2, ArrayView2};
 
 fn convolve<'a>(signal: ArrayView2<'a, f32>, filter: ArrayView2<'a, f32>) -> Array2<f32> {
     let filter_dims = filter.raw_dim();

@@ -1,8 +1,7 @@
-use image::open;
 use mli::Forward;
 use mli_conv::Conv2;
 use ndarray::array;
-use ndarray_image::{ImgLuma, NdGray, NdImage};
+use ndarray_image::{open_gray_image, save_gray_image};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -19,9 +18,7 @@ struct Opt {
 
 fn main() {
     let opt = Opt::from_args();
-    let image = open(opt.file).expect("unable to open input image");
-    let image = image.to_luma();
-    let image: NdGray = NdImage(&image).into();
+    let image = open_gray_image(opt.file).expect("unable to open input image");
     let image = image.map(|&n| n as f32);
     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
     let right_filter = down_filter.t().to_owned();
@@ -31,11 +28,9 @@ fn main() {
     fn sqrt(f: &f32) -> f32 {
         f.sqrt()
     }
-    let down = Conv2(down_filter).forward(&image.view()).1;
-    let right = Conv2(right_filter).forward(&image.view()).1;
+    let down = Conv2(down_filter).forward(&image).1;
+    let right = Conv2(right_filter).forward(&image).1;
     let image = (down.map(square) + right.map(square)).map(sqrt);
     let image = image.map(|&n| num::clamp(n, 0.0, 255.0) as u8);
-    let image: Option<ImgLuma> = NdImage(image.view()).into();
-    let image = image.expect("failed to convert ndarray to image");
-    image.save(opt.output).expect("failed to write output");
+    save_gray_image(opt.output, image.view()).expect("failed to write output");
 }
