@@ -2,6 +2,7 @@
 
 members = [
     "mli",
+    "mli-2d",
     "mli-relu",
     "mli-conv",
     "examples/sobel",
