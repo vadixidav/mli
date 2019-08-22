@@ -12,13 +12,16 @@ use structopt::StructOpt;
 #[structopt(name = "image", about = "Loads and convolves an image as a test")]
 struct Opt {
     /// Number of epochs
-    #[structopt(short = "t", default_value = "50")]
+    #[structopt(short = "t", default_value = "1000")]
     epochs: usize,
+    /// Number of epochs
+    #[structopt(short = "s", default_value = "10")]
+    show_every: usize,
     /// Learning rate
     #[structopt(short = "i", default_value = "0.000000000001")]
     initial_learning_rate: f32,
     /// Learning rate after epoch
-    #[structopt(short = "l", default_value = "0.000000001")]
+    #[structopt(short = "l", default_value = "0.000000000009")]
     learning_rate_after_10: f32,
     /// File to load
     #[structopt(parse(from_os_str))]
@@ -60,6 +63,8 @@ fn main() -> ImageResult<()> {
     let shapes = [
         (image.shape()[0] - 2, image.shape()[1] - 2),
         (image.shape()[0] - 4, image.shape()[1] - 4),
+        (image.shape()[0] - 6, image.shape()[1] - 6),
+        (image.shape()[0] - 8, image.shape()[1] - 8),
     ];
     let mut train_filter = Conv2(array![[-1.0, -1.0, -1.0], [0.0, 1.0, 0.0], [1.0, 1.0, 1.0]])
         .chain(Map2Many(Array::from_elem(shapes[0], ReluSoftplus)))
@@ -68,20 +73,35 @@ fn main() -> ImageResult<()> {
             [-1.0, 1.0, 1.0],
             [-1.0, 0.0, 1.0]
         ]))
-        .chain(Map2Many(Array::from_elem(shapes[1], ReluSoftplus)));
-    let expected = sobel_image.slice(s![1..-1, 1..-1]);
+        .chain(Map2Many(Array::from_elem(shapes[1], ReluSoftplus)))
+        .chain(Conv2(array![
+            [-1.0, 0.0, 1.0],
+            [1.0, 1.0, -1.0],
+            [-1.0, 0.0, 1.0]
+        ]))
+        .chain(Map2Many(Array::from_elem(shapes[2], ReluSoftplus)))
+        .chain(Conv2(array![
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0]
+        ]))
+        .chain(Map2Many(Array::from_elem(shapes[3], ReluSoftplus)));
+    let expected = sobel_image.slice(s![3..-3, 3..-3]);
     for i in 0..opt.epochs {
         let (internal, output) = train_filter.forward(&image);
-        save_image(opt.output_dir.join(format!("iteration{}.png", i)), &output)?;
-        eprintln!("Filter 1:\n{:?}", ((train_filter.0).0).0);
-        eprintln!("Filter 2:\n{:?}", (train_filter.0).1);
+        if i % opt.show_every == 0 {
+            save_image(opt.output_dir.join(format!("epoch{}.png", i)), &output)?;
+            let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
+            eprintln!("epoch {:04} loss: {}", i, loss);
+        }
         // The loss function is (n - t)^2, so 2*(n - t) is dE/df where
         // `E` is loss and `f` is output.
+        let delta_loss = (output - expected).map(|n| 2.0 * n);
         let output_delta = -if i < 10 {
             opt.initial_learning_rate
         } else {
             opt.learning_rate_after_10
-        } * (output - expected).map(|n| 2.0 * n);
+        } * delta_loss;
         train_filter.propogate(&image, &internal, &output_delta);
     }
     Ok(())

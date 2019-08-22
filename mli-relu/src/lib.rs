@@ -2,7 +2,7 @@ use float_ord::FloatOrd;
 use mli::*;
 
 fn sigmoid(n: f32) -> f32 {
-    (1.0 + n.exp()).recip()
+    (1.0 + (-n).exp()).recip()
 }
 
 fn relu(n: f32) -> f32 {
