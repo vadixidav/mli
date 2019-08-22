@@ -113,7 +113,7 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
         output_delta: &OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta);
 
-    /// See [`Backward::partials`] for documentation.
+    /// See [`Backward::backward`] for documentation.
     fn backward_input(
         &self,
         input: &Input,
@@ -123,7 +123,7 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
         self.backward(input, internal, output_delta).0
     }
 
-    /// See [`Backward::partials`] for documentation.
+    /// See [`Backward::backward`] for documentation.
     fn backward_train(
         &self,
         input: &Input,
@@ -135,9 +135,6 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
 }
 
 /// This trait is implemented on all operations that can be included in a trainable model.
-/// If your operation is static and has no trainable variables, please implement the [`Static`]
-/// trait instead of this trait directly and this will be implemented as a no-op (no overhead)
-/// automatically through blanket implementation.
 ///
 /// This trait is implemented on all structures that implement `Backward` that are mutable
 /// or `Static` even if they are immutable. This exists so that an immutable model can have
