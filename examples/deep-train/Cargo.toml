@@ -1,0 +1,16 @@
+[package]
+name = "deep-train"
+version = "0.1.0"
+authors = ["Geordon Worley <vadixidav@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+mli = { path = "../../mli", version = "0.11.0" }
+mli-conv = { path = "../../mli-conv", version = "0.1.0" }
+mli-ndarray = { path = "../../mli-ndarray", version = "0.1.0" }
+mli-relu = { path = "../../mli-relu", version = "0.1.0" }
+structopt = "0.2.18"
+image = "0.22.1"
+ndarray = "0.12.1"
+num = "0.2.0"
+ndarray-image = "0.1.1"

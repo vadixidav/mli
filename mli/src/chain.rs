@@ -1,7 +1,7 @@
 use crate::{Forward, Backward, Train};
 
 #[derive(Clone, Debug)]
-pub struct Chain<T, U>(pub(crate) T, pub(crate) U);
+pub struct Chain<T, U>(pub T, pub U);
 
 impl<T, U, Input> Forward<Input> for Chain<T, U> where T: Forward<Input>, U: Forward<T::Output> {
     type Internal = (T::Internal, T::Output, U::Internal);

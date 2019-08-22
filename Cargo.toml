@@ -7,4 +7,5 @@ members = [
     "mli-conv",
     "examples/sobel",
     "examples/conv-train",
+    "examples/deep-train",
 ]

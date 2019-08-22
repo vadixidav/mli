@@ -9,6 +9,7 @@ fn relu(n: f32) -> f32 {
     std::cmp::max(FloatOrd(0.0), FloatOrd(n)).0
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct ReluSoftplus;
 
 impl Forward<f32> for ReluSoftplus {
