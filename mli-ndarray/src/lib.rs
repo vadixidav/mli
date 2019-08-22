@@ -63,3 +63,16 @@ where
         (input_delta_array, train_delta_array)
     }
 }
+
+impl<G, Input, OutputDelta> Train<Array2<Input>, Array2<OutputDelta>> for Map2Many<G>
+where
+    G: Train<Input, OutputDelta>,
+{
+    fn train(&mut self, train_delta: &Self::TrainDelta) {
+        let mut ops = self.0.view_mut();
+        let train_delta = train_delta.view();
+        azip!(mut ops, ref train_delta in {
+            ops.train(train_delta);
+        });
+    }
+}
