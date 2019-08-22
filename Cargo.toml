@@ -5,6 +5,7 @@ members = [
     "mli-ndarray",
     "mli-relu",
     "mli-conv",
+    "mli-sigmoid",
     "examples/sobel",
     "examples/conv-train",
     "examples/deep-train",
