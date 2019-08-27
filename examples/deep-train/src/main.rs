@@ -1,8 +1,9 @@
 use image::ImageResult;
 use mli::{Forward, Graph, Train};
 use mli_conv::Conv2;
-use mli_ndarray::Map2Many;
-use mli_relu::Relu;
+use mli_ndarray::Map2Static;
+use mli_relu::Softplus;
+use mli_sigmoid::Logistic;
 use ndarray::{array, s, Array, Array2};
 use ndarray_image::{open_gray_image, save_gray_image};
 use rand_core::SeedableRng;
@@ -37,24 +38,18 @@ struct Opt {
 fn sobel(image: &Array2<f32>) -> Array2<f32> {
     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
     let right_filter = down_filter.t().to_owned();
-    fn square(f: &f32) -> f32 {
-        f.powi(2)
-    }
-    fn sqrt(f: &f32) -> f32 {
-        f.sqrt()
-    }
     let down = Conv2(down_filter).forward(&image).1;
     let right = Conv2(right_filter).forward(&image).1;
-    (down.map(square) + right.map(square)).map(sqrt)
+    (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt())
 }
 
 fn open_image(path: impl AsRef<Path>) -> ImageResult<Array2<f32>> {
     let image = open_gray_image(path)?;
-    Ok(image.map(|&n| n as f32))
+    Ok(image.map(|&n| f32::from(n) / 255.0))
 }
 
 fn save_image(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
-    let image = image.map(|&n| num::clamp(n, 0.0, 255.0) as u8);
+    let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
     save_gray_image(path, image.view())
 }
 
@@ -63,33 +58,31 @@ fn main() -> ImageResult<()> {
     let mut prng = Pcg64::from_seed([0; 32]);
     let image = open_image(opt.file)?;
     let sobel_image = sobel(&image);
-    let expected = sobel_image.slice(s![3..-3, 3..-3]);
+    let conv_layers = 4;
+    let filter_radius = 1usize;
+    let filter_len = (filter_radius * 2 + 1).pow(2);
+    let padding = (conv_layers * filter_radius - 1) as i32;
+    #[allow(clippy::deref_addrof)]
+    let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
     save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
-    let shapes = [
-        (image.shape()[0] - 2, image.shape()[1] - 2),
-        (image.shape()[0] - 4, image.shape()[1] - 4),
-        (image.shape()[0] - 6, image.shape()[1] - 6),
-        (image.shape()[0] - 8, image.shape()[1] - 8),
-    ];
-    let mut random_filter = || {
+    let mut random_filter = |mean: f32, variance: f32| {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         Array::from_iter(
-            Normal::new(1.0 / 9.0, 1.0 / 9.0)
+            Normal::new(mean / filter_len as f32, variance / filter_len as f32)
                 .unwrap()
                 .sample_iter(&mut prng)
-                .take(9),
+                .take(filter_len),
         )
-        .into_shape((3, 3))
+        .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
         .unwrap()
     };
-    let mut train_filter = Conv2(random_filter())
-        .chain(Map2Many(Array::from_elem(shapes[0], Relu)))
-        .chain(Conv2(random_filter()))
-        .chain(Map2Many(Array::from_elem(shapes[1], Relu)))
-        .chain(Conv2(random_filter()))
-        .chain(Map2Many(Array::from_elem(shapes[2], Relu)))
-        .chain(Conv2(random_filter()))
-        .chain(Map2Many(Array::from_elem(shapes[3], Relu)));
+    let mut train_filter = Conv2(random_filter(0.0, 3.0))
+        .chain(Map2Static(Softplus))
+        .chain(Conv2(random_filter(0.0, 3.0)))
+        .chain(Map2Static(Logistic))
+        .chain(Conv2(random_filter(0.0, 3.0)))
+        .chain(Map2Static(Logistic))
+        .chain(Conv2(random_filter(15.0, 15.0)));
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
         let (internal, output) = train_filter.forward(&image);

@@ -1,8 +1,7 @@
-use float_ord::FloatOrd;
 use mli::*;
 
 fn logistic(n: f32) -> f32 {
-    (1.0 + (-n).exp()).recip()
+    (1.0 + (-n).exp()).recip() - 0.5
 }
 
 fn logistic_derivative(n: f32) -> f32 {
