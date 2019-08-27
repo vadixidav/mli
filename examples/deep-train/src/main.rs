@@ -76,13 +76,13 @@ fn main() -> ImageResult<()> {
         .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
         .unwrap()
     };
-    let mut train_filter = Conv2(random_filter(0.0, 3.0))
+    let mut train_filter = Conv2(random_filter(1.0, 9.0f32.powi(-1)))
         .chain(Map2Static(Softplus))
-        .chain(Conv2(random_filter(0.0, 3.0)))
+        .chain(Conv2(random_filter(0.0, 9.0f32.powi(0))))
         .chain(Map2Static(Logistic))
-        .chain(Conv2(random_filter(0.0, 3.0)))
+        .chain(Conv2(random_filter(0.0, 9.0f32.powi(1))))
         .chain(Map2Static(Logistic))
-        .chain(Conv2(random_filter(15.0, 15.0)));
+        .chain(Conv2(random_filter(8.0, 9.0f32.powi(2))));
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
         let (internal, output) = train_filter.forward(&image);
