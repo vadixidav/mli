@@ -5,7 +5,8 @@ use mli::*;
 #[derive(Copy, Clone, Debug)]
 pub struct ReluSoftplus;
 
-impl Forward<f32> for ReluSoftplus {
+impl Forward for ReluSoftplus {
+    type Input = f32;
     type Internal = ();
     type Output = f32;
 
@@ -14,7 +15,8 @@ impl Forward<f32> for ReluSoftplus {
     }
 }
 
-impl Backward<f32, f32> for ReluSoftplus {
+impl Backward for ReluSoftplus {
+    type OutputDelta = f32;
     type InputDelta = f32;
     type TrainDelta = ();
 
@@ -28,6 +30,6 @@ impl Backward<f32, f32> for ReluSoftplus {
     }
 }
 
-impl Train<f32, f32> for ReluSoftplus {
+impl Train for ReluSoftplus {
     fn train(&mut self, _: &Self::TrainDelta) {}
 }

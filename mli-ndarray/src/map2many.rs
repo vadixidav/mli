@@ -5,14 +5,15 @@ use ndarray::{azip, Array, Array2};
 #[derive(Clone, Debug)]
 pub struct Map2Many<G>(pub Array2<G>);
 
-impl<G, Input> Forward<Array2<Input>> for Map2Many<G>
+impl<G> Forward for Map2Many<G>
 where
-    G: Forward<Input>,
+    G: Forward,
 {
+    type Input = Array2<G::Input>;
     type Internal = Array2<G::Internal>;
     type Output = Array2<G::Output>;
 
-    fn forward(&self, input: &Array2<Input>) -> (Self::Internal, Self::Output) {
+    fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
         assert_eq!(input.shape(), self.0.shape());
         let both_vec: Vec<(G::Internal, G::Output)> = input
             .iter()
@@ -33,18 +34,19 @@ where
     }
 }
 
-impl<G, Input, OutputDelta> Backward<Array2<Input>, Array2<OutputDelta>> for Map2Many<G>
+impl<G> Backward for Map2Many<G>
 where
-    G: Backward<Input, OutputDelta>,
+    G: Backward,
 {
+    type OutputDelta = Array2<G::OutputDelta>;
     type InputDelta = Array2<G::InputDelta>;
     type TrainDelta = Array2<G::TrainDelta>;
 
     fn backward(
         &self,
-        input: &Array2<Input>,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &Array2<OutputDelta>,
+        output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         assert_eq!(input.shape(), self.0.shape());
         let both_vec: Vec<(G::InputDelta, G::TrainDelta)> = izip!(
@@ -69,9 +71,9 @@ where
     }
 }
 
-impl<G, Input, OutputDelta> Train<Array2<Input>, Array2<OutputDelta>> for Map2Many<G>
+impl<G> Train for Map2Many<G>
 where
-    G: Train<Input, OutputDelta>,
+    G: Train,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
         let mut ops = self.0.view_mut();

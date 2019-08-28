@@ -38,8 +38,8 @@ struct Opt {
 fn sobel(image: &Array2<f32>) -> Array2<f32> {
     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
     let right_filter = down_filter.t().to_owned();
-    let down = Conv2(down_filter).forward(&image).1;
-    let right = Conv2(right_filter).forward(&image).1;
+    let down = Conv2::new(down_filter).forward(&image).1;
+    let right = Conv2::new(right_filter).forward(&image).1;
     (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt())
 }
 
@@ -65,7 +65,7 @@ fn main() -> ImageResult<()> {
     #[allow(clippy::deref_addrof)]
     let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
     save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
-    let mut random_filter = |mean: f32, variance: f32| {
+    let mut random_filter = |mean: f32, variance: f32| -> Array2<f32> {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         Array::from_iter(
             Normal::new(mean / filter_len as f32, variance / filter_len as f32)
@@ -76,13 +76,13 @@ fn main() -> ImageResult<()> {
         .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
         .unwrap()
     };
-    let mut train_filter = Conv2(random_filter(1.0, 9.0f32.powi(-1)))
+    let mut train_filter = Conv2::new(random_filter(1.0, 9.0f32.powi(-1)))
         .chain(Map2Static(Softplus))
-        .chain(Conv2(random_filter(0.0, 9.0f32.powi(0))))
+        .chain(Conv2::new(random_filter(0.0, 9.0f32.powi(0))))
         .chain(Map2Static(Logistic))
-        .chain(Conv2(random_filter(0.0, 9.0f32.powi(1))))
+        .chain(Conv2::new(random_filter(0.0, 9.0f32.powi(1))))
         .chain(Map2Static(Logistic))
-        .chain(Conv2(random_filter(8.0, 9.0f32.powi(2))));
+        .chain(Conv2::new(random_filter(8.0, 9.0f32.powi(2))));
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
         let (internal, output) = train_filter.forward(&image);

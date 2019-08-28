@@ -11,7 +11,8 @@ fn softplus(n: f32) -> f32 {
     (1.0 + n.exp()).ln()
 }
 
-impl Forward<f32> for Softplus {
+impl Forward for Softplus {
+    type Input = f32;
     type Internal = ();
     type Output = f32;
 
@@ -20,7 +21,8 @@ impl Forward<f32> for Softplus {
     }
 }
 
-impl Backward<f32, f32> for Softplus {
+impl Backward for Softplus {
+    type OutputDelta = f32;
     type InputDelta = f32;
     type TrainDelta = ();
 
@@ -34,6 +36,6 @@ impl Backward<f32, f32> for Softplus {
     }
 }
 
-impl Train<f32, f32> for Softplus {
+impl Train for Softplus {
     fn train(&mut self, _: &Self::TrainDelta) {}
 }

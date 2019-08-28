@@ -7,14 +7,15 @@ use std::ops::Add;
 #[derive(Clone, Debug)]
 pub struct Map2One<G>(pub G);
 
-impl<G, Input> Forward<Array2<Input>> for Map2One<G>
+impl<G> Forward for Map2One<G>
 where
-    G: Forward<Input>,
+    G: Forward,
 {
+    type Input = Array2<G::Input>;
     type Internal = Array2<G::Internal>;
     type Output = Array2<G::Output>;
 
-    fn forward(&self, input: &Array2<Input>) -> (Self::Internal, Self::Output) {
+    fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
         let both_vec: Vec<(G::Internal, G::Output)> =
             input.iter().map(|input| self.0.forward(input)).collect();
         let (internal_vec, output_vec) = both_vec.into_iter().fold(
@@ -31,18 +32,19 @@ where
     }
 }
 
-impl<G, Input, OutputDelta> Backward<Array2<Input>, Array2<OutputDelta>> for Map2One<G>
+impl<G> Backward for Map2One<G>
 where
-    G: Backward<Input, OutputDelta>,
+    G: Backward,
 {
+    type OutputDelta = Array2<G::OutputDelta>;
     type InputDelta = Array2<G::InputDelta>;
     type TrainDelta = Array2<G::TrainDelta>;
 
     fn backward(
         &self,
-        input: &Array2<Input>,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &Array2<OutputDelta>,
+        output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         let both_vec: Vec<(G::InputDelta, G::TrainDelta)> =
             izip!(input.iter(), internal.iter(), output_delta.iter(),)
@@ -64,9 +66,9 @@ where
     }
 }
 
-impl<G, Input, OutputDelta> Train<Array2<Input>, Array2<OutputDelta>> for Map2One<G>
+impl<G> Train for Map2One<G>
 where
-    G: Train<Input, OutputDelta>,
+    G: Train,
     G::TrainDelta: Clone + Add + Zero,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {

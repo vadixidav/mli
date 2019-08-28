@@ -19,18 +19,12 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
     let image = open_gray_image(opt.file).expect("unable to open input image");
-    let image = image.map(|&n| n as f32);
+    let image = image.map(|&n| n.into());
     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
     let right_filter = down_filter.t().to_owned();
-    fn square(f: &f32) -> f32 {
-        f.powi(2)
-    }
-    fn sqrt(f: &f32) -> f32 {
-        f.sqrt()
-    }
     let down = Conv2(down_filter).forward(&image).1;
     let right = Conv2(right_filter).forward(&image).1;
-    let image = (down.map(square) + right.map(square)).map(sqrt);
+    let image = (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt());
     let image = image.map(|&n| num::clamp(n, 0.0, 255.0) as u8);
     save_gray_image(opt.output, image.view()).expect("failed to write output");
 }

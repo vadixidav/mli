@@ -71,14 +71,22 @@ mod chain;
 pub use chain::*;
 
 /// This trait is for algorithms that have an input and produce an output.
-pub trait Forward<Input> {
+pub trait Forward {
+    type Input;
     type Internal;
     type Output;
 
     /// `forward` produces:
     /// - All intermediary values produced, which can be reused in the back propogation step
     /// - The output `f` given an `input`
-    fn forward(&self, input: &Input) -> (Self::Internal, Self::Output);
+    fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output);
+
+    /// `run` only produces the output from the input. The default implementation uses `forward`.
+    /// You can make a custom implementation of this to avoid the overhead of producing and returning
+    /// the internal variables.
+    fn run(&self, input: &Self::Input) -> Self::Output {
+        self.forward(input).1
+    }
 }
 
 /// This trait indicates support of backwards propogation.
@@ -87,7 +95,8 @@ pub trait Forward<Input> {
 /// If training is not possible, this trait can still be implemented with those definitions
 /// being empty. In that case, machine learning algorithms will still be able to back propogate
 /// over this operation, but training it will be a no-op.
-pub trait Backward<Input, OutputDelta>: Forward<Input> {
+pub trait Backward: Forward {
+    type OutputDelta;
     type InputDelta;
     type TrainDelta;
 
@@ -108,17 +117,17 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
     /// (e.g. ReLU and signum).
     fn backward(
         &self,
-        input: &Input,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &OutputDelta,
+        output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta);
 
     /// See [`Backward::backward`] for documentation.
     fn backward_input(
         &self,
-        input: &Input,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &OutputDelta,
+        output_delta: &Self::OutputDelta,
     ) -> Self::InputDelta {
         self.backward(input, internal, output_delta).0
     }
@@ -126,9 +135,9 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
     /// See [`Backward::backward`] for documentation.
     fn backward_train(
         &self,
-        input: &Input,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &OutputDelta,
+        output_delta: &Self::OutputDelta,
     ) -> Self::TrainDelta {
         self.backward(input, internal, output_delta).1
     }
@@ -144,7 +153,7 @@ pub trait Backward<Input, OutputDelta>: Forward<Input> {
 /// definitions being empty. In that case, machine learning algorithms will still be able to
 /// incorporate this operation, but training it will be a no-op. This is necessary to
 /// implement to be included in a trainable model.
-pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
+pub trait Train: Backward {
     /// `train` takes in a train delta `Δv` and applies it to the trained variables.
     ///
     /// This should effectively perform `v += Δv`.
@@ -158,9 +167,9 @@ pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
     /// If an implementation can do this efficiently, it should create a custom implemenatation.
     fn propogate(
         &mut self,
-        input: &Input,
+        input: &Self::Input,
         internal: &Self::Internal,
-        output_delta: &OutputDelta,
+        output_delta: &Self::OutputDelta,
     ) -> Self::InputDelta {
         let (input_delta, train_delta) = self.backward(input, internal, output_delta);
         self.train(&train_delta);
@@ -168,10 +177,10 @@ pub trait Train<Input, OutputDelta>: Backward<Input, OutputDelta> {
     }
 }
 
-pub trait Graph<Input, OutputDelta>: Train<Input, OutputDelta> + Sized {
+pub trait Graph: Train + Sized {
     fn chain<U>(self, other: U) -> Chain<Self, U> {
         Chain(self, other)
     }
 }
 
-impl<T, Input, OutputDelta> Graph<Input, OutputDelta> for T where T: Train<Input, OutputDelta> {}
+impl<T> Graph for T where T: Train {}

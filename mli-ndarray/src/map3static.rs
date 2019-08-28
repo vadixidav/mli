@@ -1,17 +1,17 @@
 use itertools::izip;
 use mli::{Backward, Forward, Train};
-use ndarray::{Array, Array2};
+use ndarray::{Array, Array3};
 
 #[derive(Clone, Debug)]
-pub struct Map2Static<G>(pub G);
+pub struct Map3Static<G>(pub G);
 
-impl<G> Forward for Map2Static<G>
+impl<G> Forward for Map3Static<G>
 where
     G: Forward<Internal = ()>,
 {
-    type Input = Array2<G::Input>;
+    type Input = Array3<G::Input>;
     type Internal = ();
-    type Output = Array2<G::Output>;
+    type Output = Array3<G::Output>;
 
     fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
         let output_vec: Vec<G::Output> =
@@ -21,12 +21,12 @@ where
     }
 }
 
-impl<G> Backward for Map2Static<G>
+impl<G> Backward for Map3Static<G>
 where
     G: Backward<TrainDelta = ()> + Forward<Internal = ()>,
 {
-    type OutputDelta = Array2<G::OutputDelta>;
-    type InputDelta = Array2<G::InputDelta>;
+    type OutputDelta = Array3<G::OutputDelta>;
+    type InputDelta = Array3<G::InputDelta>;
     type TrainDelta = ();
 
     fn backward(
@@ -43,7 +43,7 @@ where
     }
 }
 
-impl<G> Train for Map2Static<G>
+impl<G> Train for Map3Static<G>
 where
     G: Backward<TrainDelta = ()> + Forward<Internal = ()>,
 {

@@ -12,7 +12,8 @@ fn heaviside(n: f32) -> f32 {
     (n.signum() + 1.0) * 0.5
 }
 
-impl Forward<f32> for Relu {
+impl Forward for Relu {
+    type Input = f32;
     type Internal = ();
     type Output = f32;
 
@@ -21,7 +22,8 @@ impl Forward<f32> for Relu {
     }
 }
 
-impl Backward<f32, f32> for Relu {
+impl Backward for Relu {
+    type OutputDelta = f32;
     type InputDelta = f32;
     type TrainDelta = ();
 
@@ -35,6 +37,6 @@ impl Backward<f32, f32> for Relu {
     }
 }
 
-impl Train<f32, f32> for Relu {
+impl Train for Relu {
     fn train(&mut self, _: &Self::TrainDelta) {}
 }

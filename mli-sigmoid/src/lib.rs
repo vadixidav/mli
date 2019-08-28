@@ -12,7 +12,8 @@ fn logistic_derivative(n: f32) -> f32 {
 #[derive(Copy, Clone, Debug)]
 pub struct Logistic;
 
-impl Forward<f32> for Logistic {
+impl Forward for Logistic {
+    type Input = f32;
     type Internal = ();
     type Output = f32;
 
@@ -21,7 +22,8 @@ impl Forward<f32> for Logistic {
     }
 }
 
-impl Backward<f32, f32> for Logistic {
+impl Backward for Logistic {
+    type OutputDelta = f32;
     type InputDelta = f32;
     type TrainDelta = ();
 
@@ -35,6 +37,6 @@ impl Backward<f32, f32> for Logistic {
     }
 }
 
-impl Train<f32, f32> for Logistic {
+impl Train for Logistic {
     fn train(&mut self, _: &Self::TrainDelta) {}
 }
