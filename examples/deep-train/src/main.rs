@@ -85,7 +85,7 @@ fn main() -> ImageResult<()> {
         .chain(Conv2::new(random_filter(8.0, 9.0f32.powi(2))));
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
-        let (internal, output) = train_filter.forward(&image);
+        let (internal, output) = train_filter.forward(&image.view());
         if i % opt.show_every == 0 {
             save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
         }
@@ -95,7 +95,7 @@ fn main() -> ImageResult<()> {
         // `E` is loss and `f` is output.
         let delta_loss = (output - expected).map(|n| 2.0 * n);
         let output_delta = -learn_rate * delta_loss;
-        train_filter.propogate(&image, &internal, &output_delta);
+        train_filter.propogate(&image.view(), &internal, &output_delta);
         learn_rate *= opt.learning_rate_multiplier;
     }
     Ok(())
