@@ -7,10 +7,9 @@
 //! To understand MLI, we actually just need to go over some basic Rust concepts.
 //!
 //! In Rust, the following relationships relate the owned versions of data with the borrowed versions:
+//! - `T` -> `&mut T` -> `&T`
 //! - `Vec<T>` -> `&mut [T]` -> `&[T]`
 //! - `String` -> `&mut str` -> `&str`
-//! - `PathBuf` -> `Path`
-//! - `OsString` -> `OsStr`
 //! - `FnOnce` -> `FnMut` -> `Fn`
 //!
 //! Most people don't think about the last one, because it is a trait, but it is critical to understand.
@@ -19,7 +18,7 @@
 //! downgrade that mutable borrow to an immutable borrow.
 //!
 //! In MLI, the equivalent is:
-//! - `Graph` -> `RunGraph`
+//! - `Graph` -> `&mut Graph` -> `&Graph`
 //!
 //! Let us decompose the notion of what a compute graph is. A compute graph simply takes several inputs,
 //! produces several intermediary outputs, and then produces the actual outputs. Each one of these
@@ -43,10 +42,10 @@
 //! delta before hand, you can just sum all of the deltas in the batch and train the network.
 //!
 //! The network which is trained though can't possibly be the one we distributed to all the threads,
-//! however, due to Rust's ownership and borrowing. This is where the `Graph` and the `RunGraph` come in.
-//! The `Graph` is the trainable graph which we have complete ownership over. The `RunGraph` immutably borrows
-//! the `Graph`, so we can create a lot of `RunGraph` and propogate [`Forward`] and [`Backward`] across them
-//! in multiple threads. We can then sum all of the deltas from the threads when they are done and then
+//! however, due to Rust's ownership and borrowing. This is where the references come in.
+//! The `Graph` is trainable since we can mutate it. The `&Graph` immutably borrows
+//! the `Graph`, which we can propogate [`Forward`] and [`Backward`] across
+//! multiple threads. We can then sum all of the deltas from the threads when they are done and then
 //! update the `Graph`, which is no longer borrowed.
 //!
 //! Currently there are three main traits:
@@ -184,3 +183,127 @@ pub trait Graph: Train + Sized {
 }
 
 impl<T> Graph for T where T: Train {}
+
+impl<'a, T> Forward for &'a T
+where
+    T: Forward,
+{
+    type Input = T::Input;
+    type Internal = T::Internal;
+    type Output = T::Output;
+
+    fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
+        T::forward(self, input)
+    }
+
+    fn run(&self, input: &Self::Input) -> Self::Output {
+        T::run(self, input)
+    }
+}
+
+impl<'a, T> Forward for &'a mut T
+where
+    T: Forward,
+{
+    type Input = T::Input;
+    type Internal = T::Internal;
+    type Output = T::Output;
+
+    fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
+        T::forward(self, input)
+    }
+
+    fn run(&self, input: &Self::Input) -> Self::Output {
+        T::run(self, input)
+    }
+}
+
+impl<'a, T> Backward for &'a T
+where
+    T: Backward,
+{
+    type OutputDelta = T::OutputDelta;
+    type InputDelta = T::InputDelta;
+    type TrainDelta = T::TrainDelta;
+
+    fn backward(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> (Self::InputDelta, Self::TrainDelta) {
+        T::backward(self, input, internal, output_delta)
+    }
+
+    fn backward_input(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> Self::InputDelta {
+        T::backward_input(self, input, internal, output_delta)
+    }
+
+    fn backward_train(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> Self::TrainDelta {
+        T::backward_train(self, input, internal, output_delta)
+    }
+}
+
+impl<'a, T> Backward for &'a mut T
+where
+    T: Backward,
+{
+    type OutputDelta = T::OutputDelta;
+    type InputDelta = T::InputDelta;
+    type TrainDelta = T::TrainDelta;
+
+    fn backward(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> (Self::InputDelta, Self::TrainDelta) {
+        T::backward(self, input, internal, output_delta)
+    }
+
+    fn backward_input(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> Self::InputDelta {
+        T::backward_input(self, input, internal, output_delta)
+    }
+
+    fn backward_train(
+        &self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> Self::TrainDelta {
+        T::backward_train(self, input, internal, output_delta)
+    }
+}
+
+impl<'a, T> Train for &'a mut T
+where
+    T: Train,
+{
+    fn train(&mut self, train_delta: &Self::TrainDelta) {
+        T::train(self, train_delta)
+    }
+
+    fn propogate(
+        &mut self,
+        input: &Self::Input,
+        internal: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> Self::InputDelta {
+        T::propogate(self, input, internal, output_delta)
+    }
+}

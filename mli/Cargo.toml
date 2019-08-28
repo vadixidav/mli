@@ -8,3 +8,4 @@ repository = "https://github.com/vadixidav/mli"
 authors = ["Geordon Worley <vadixidav@gmail.com>"]
 keywords = ["learning", "machine", "combinator", "tensor"]
 license = "MIT"
+readme = "../README.md"
