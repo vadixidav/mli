@@ -13,7 +13,7 @@ impl Blu {
     }
 }
 
-const EPSILON: f32 = 0.000001;
+const EPSILON: f32 = 0.001;
 
 fn blu(a: f32, b: f32, x: f32) -> f32 {
     b * ((x.powi(2) + a.powi(2) + EPSILON).sqrt() - a) + x
@@ -33,7 +33,6 @@ fn dblu_db(a: f32, x: f32) -> f32 {
 
 impl Forward for Blu {
     type Input = f32;
-    /// (alpha, beta)
     type Internal = ();
     type Output = f32;
 
@@ -58,7 +57,7 @@ impl Backward for Blu {
             Vector2::new(
                 dblu_da(self.alpha, self.beta, input),
                 dblu_db(self.alpha, input),
-            ),
+            ) * output_delta,
         )
     }
 }
