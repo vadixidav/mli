@@ -1,9 +1,8 @@
 use image::ImageResult;
 use mli::{Forward, Graph, Train};
 use mli_conv::Conv2;
-use mli_ndarray::Map2Static;
-use mli_relu::Softplus;
-use mli_sigmoid::Logistic;
+use mli_ndarray::Map2One;
+use mli_relu::Blu;
 use ndarray::{array, s, Array, Array2};
 use ndarray_image::{open_gray_image, save_gray_image};
 use rand_core::SeedableRng;
@@ -77,11 +76,11 @@ fn main() -> ImageResult<()> {
         .unwrap()
     };
     let mut train_filter = Conv2::new(random_filter(1.0, 9.0f32.powi(-1)))
-        .chain(Map2Static(Softplus))
+        .chain(Map2One(Blu::new(0.1, 0.2)))
         .chain(Conv2::new(random_filter(0.0, 9.0f32.powi(0))))
-        .chain(Map2Static(Logistic))
+        .chain(Map2One(Blu::new(-0.3, 0.7)))
         .chain(Conv2::new(random_filter(0.0, 9.0f32.powi(1))))
-        .chain(Map2Static(Logistic))
+        .chain(Map2One(Blu::new(0.4, -0.2)))
         .chain(Conv2::new(random_filter(8.0, 9.0f32.powi(2))));
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
