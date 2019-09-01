@@ -69,6 +69,9 @@
 mod chain;
 pub use chain::*;
 
+mod chain_data;
+pub use chain_data::*;
+
 /// This trait is for algorithms that have an input and produce an output.
 pub trait Forward {
     type Input;

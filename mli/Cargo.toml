@@ -9,3 +9,5 @@ authors = ["Geordon Worley <vadixidav@gmail.com>"]
 keywords = ["learning", "machine", "combinator", "tensor"]
 license = "MIT"
 readme = "../README.md"
+
+[dependencies]

@@ -1,4 +1,4 @@
-use crate::{Backward, Forward, Train};
+use crate::{Backward, ChainData, Forward, Train};
 
 #[derive(Clone, Debug)]
 pub struct Chain<T, U>(pub T, pub U);
@@ -26,7 +26,7 @@ where
 {
     type OutputDelta = U::OutputDelta;
     type InputDelta = T::InputDelta;
-    type TrainDelta = (T::TrainDelta, U::TrainDelta);
+    type TrainDelta = ChainData<T::TrainDelta, U::TrainDelta>;
 
     fn backward(
         &self,
@@ -37,7 +37,7 @@ where
         let (t_internal, t_output, u_internal) = internal;
         let (u_input_delta, u_train_delta) = self.1.backward(t_output, u_internal, output_delta);
         let (t_input_delta, t_train_delta) = self.0.backward(input, t_internal, &u_input_delta);
-        (t_input_delta, (t_train_delta, u_train_delta))
+        (t_input_delta, ChainData(t_train_delta, u_train_delta))
     }
 }
 
@@ -47,7 +47,7 @@ where
     U: Train + Backward + Forward<Input = O>,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        let (t_train_delta, u_train_delta) = train_delta;
+        let ChainData(t_train_delta, u_train_delta) = train_delta;
         self.0.train(t_train_delta);
         self.1.train(u_train_delta);
     }
