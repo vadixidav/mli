@@ -188,8 +188,20 @@ fn main() -> ImageResult<()> {
             // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
             let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
             eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
-            if i > 10 && loss > 80000.0 {
+            if i > 15 && loss > 80000.0 {
                 eprintln!("loss > 80000.0 at epoch {}; starting over", i);
+                break;
+            }
+            if i > 50 && loss > 70000.0 {
+                eprintln!("loss > 70000.0 at epoch {}; starting over", i);
+                break;
+            }
+            if i > 150 && loss > 60000.0 {
+                eprintln!("loss > 60000.0 at epoch {}; starting over", i);
+                break;
+            }
+            if i > 500 && loss > 30000.0 {
+                eprintln!("loss > 60000.0 at epoch {}; starting over", i);
                 break;
             }
             if !loss.is_normal() {
