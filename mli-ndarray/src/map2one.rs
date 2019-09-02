@@ -35,10 +35,11 @@ where
 impl<G> Backward for Map2One<G>
 where
     G: Backward,
+    G::TrainDelta: Clone + Add + Zero,
 {
     type OutputDelta = Array2<G::OutputDelta>;
     type InputDelta = Array2<G::InputDelta>;
-    type TrainDelta = Array2<G::TrainDelta>;
+    type TrainDelta = G::TrainDelta;
 
     fn backward(
         &self,
@@ -62,7 +63,7 @@ where
         );
         let input_delta_array = Array::from_shape_vec(input.raw_dim(), input_delta_vec).unwrap();
         let train_delta_array = Array::from_shape_vec(input.raw_dim(), train_delta_vec).unwrap();
-        (input_delta_array, train_delta_array)
+        (input_delta_array, train_delta_array.sum())
     }
 }
 
@@ -72,6 +73,6 @@ where
     G::TrainDelta: Clone + Add + Zero,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        self.0.train(&train_delta.sum());
+        self.0.train(&train_delta);
     }
 }

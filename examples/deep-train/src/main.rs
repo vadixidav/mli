@@ -1,5 +1,5 @@
 use image::ImageResult;
-use mli::{Forward, Graph, Train};
+use mli::{Backward, Forward, Graph, Train};
 use mli_conv::Conv2;
 use mli_ndarray::Map2One;
 use mli_relu::Blu;
@@ -29,6 +29,9 @@ struct Opt {
     /// Seed
     #[structopt(short = "z", default_value = "42")]
     seed: u32,
+    /// Beta value for NAG
+    #[structopt(short = "b", default_value = "0.9")]
+    beta: f32,
     /// File to load
     #[structopt(parse(from_os_str))]
     file: PathBuf,
@@ -152,29 +155,60 @@ fn main() -> ImageResult<()> {
         let distr = Normal::new(mean, variance).unwrap();
         Blu::new(distr.sample(&mut prng), distr.sample(&mut prng))
     };
-    let mut train_filter = random_filter(0.0, 10.0f32.powi(0))
-        .chain(Map2One(random_blu(0.0, 0.05)))
-        .chain(random_filter(0.0, 10.0f32.powi(0)))
-        .chain(Map2One(random_blu(0.0, 0.05)))
-        .chain(random_filter(0.0, 10.0f32.powi(0)))
-        .chain(Map2One(random_blu(0.0, 0.05)))
-        .chain(random_filter(0.0, 10.0f32.powi(0)))
-        .chain(Map2One(random_blu(0.0, 0.05)))
-        .chain(random_filter(64.0, 10.0f32.powi(3)));
-    let mut learn_rate = opt.initial_learning_rate;
-    for i in 0..opt.epochs {
-        let (internal, output) = train_filter.forward(&image);
-        if i % opt.show_every == 0 {
-            save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
+    let mut generate_filter = || {
+        random_filter(0.0, 10.0f32.powi(0))
+            .chain(Map2One(random_blu(0.0, 0.05)))
+            .chain(random_filter(0.0, 10.0f32.powi(0)))
+            .chain(Map2One(random_blu(0.0, 0.05)))
+            .chain(random_filter(0.0, 10.0f32.powi(0)))
+            .chain(Map2One(random_blu(0.0, 0.05)))
+            .chain(random_filter(0.0, 10.0f32.powi(0)))
+            .chain(Map2One(random_blu(0.0, 0.05)))
+            .chain(random_filter(64.0, 10.0f32.powi(3)))
+    };
+
+    loop {
+        let mut train_filter = generate_filter();
+        let mut learn_rate = opt.initial_learning_rate;
+        // Weird hack to initialize the momentum to zero without knowing the shape of the ndarray in advance.
+        let mut momentum = {
+            let (internal, output) = train_filter.forward(&image);
+            train_filter.backward_train(&image, &internal, &output)
+        };
+        momentum *= 0.0f32;
+        for i in 0..opt.epochs {
+            // Compute beta * momentum.
+            momentum *= opt.beta;
+            train_filter.train(&momentum);
+            let (internal, output) = train_filter.forward(&image);
+            // Show the image if the frame is divisible by show_every.
+            if i % opt.show_every == 0 {
+                save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
+            }
+            // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
+            let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
+            eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
+            if i > 10 && loss > 80000.0 {
+                eprintln!("loss > 80000.0 at epoch {}; starting over", i);
+                break;
+            }
+            if !loss.is_normal() {
+                eprintln!("abnormal loss at epoch {}; starting over", i);
+                break;
+            }
+            // The loss function is (n - t)^2, so 2*(n - t) is dE/df where
+            // `E` is loss and `f` is output.
+            let delta_loss = (output - expected).map(|n| 2.0 * n);
+            // Compute the output delta.
+            let output_delta = -learn_rate * delta_loss;
+            // Compute the trainable variable delta.
+            let mut train_delta = train_filter.backward_train(&image, &internal, &output_delta);
+            // Make the train delta a small component.
+            train_delta *= 1.0 - opt.beta;
+            train_filter.train(&train_delta);
+            // Add the small component to the momentum.
+            momentum += train_delta;
+            learn_rate *= opt.learning_rate_multiplier;
         }
-        let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
-        eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
-        // The loss function is (n - t)^2, so 2*(n - t) is dE/df where
-        // `E` is loss and `f` is output.
-        let delta_loss = (output - expected).map(|n| 2.0 * n);
-        let output_delta = -learn_rate * delta_loss;
-        train_filter.propogate(&image, &internal, &output_delta);
-        learn_rate *= opt.learning_rate_multiplier;
     }
-    Ok(())
 }

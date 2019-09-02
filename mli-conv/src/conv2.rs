@@ -1,5 +1,6 @@
 use mli::*;
-use ndarray::{s, Array, Array2, ArrayBase, ArrayView2, Data};
+use mli_ndarray::Ndeep;
+use ndarray::{s, Array, Array2, ArrayBase, ArrayView2, Data, OwnedRepr};
 use std::marker::PhantomData;
 
 type D = ndarray::Ix2;
@@ -50,7 +51,7 @@ where
 {
     type OutputDelta = Array2<f32>;
     type InputDelta = Array2<f32>;
-    type TrainDelta = Array2<f32>;
+    type TrainDelta = Ndeep<OwnedRepr<f32>, D>;
 
     fn backward(
         &self,
@@ -88,7 +89,7 @@ where
             .zip(output_delta.iter())
             .map(|(view, &delta)| (view.to_owned() * delta))
             .fold(Array2::zeros(filter_dims), |acc, item| acc + item);
-        (input_delta, train_delta)
+        (input_delta, Ndeep(train_delta))
     }
 }
 
@@ -97,6 +98,6 @@ where
     S: Data<Elem = f32>,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        self.0 += train_delta;
+        self.0 += &train_delta.0;
     }
 }
