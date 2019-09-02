@@ -24,7 +24,7 @@ struct Opt {
     #[structopt(short = "i", default_value = "0.0000000005")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
-    #[structopt(short = "m", default_value = "1.003")]
+    #[structopt(short = "m", default_value = "1.001")]
     learning_rate_multiplier: f32,
     /// Seed
     #[structopt(short = "z", default_value = "42")]
@@ -62,9 +62,9 @@ fn main() -> ImageResult<()> {
     let opt = Opt::from_args();
     let image = open_image(opt.file)?;
     let sobel_image = sobel(&image);
-    let conv_layers = 3;
+    let conv_layers = 4;
     let filter_radius = 1usize;
-    let filter_depth = 16usize;
+    let filter_depth = 24usize;
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
     let padding = (conv_layers * filter_radius - 1) as i32;
@@ -125,7 +125,9 @@ fn main() -> ImageResult<()> {
             .chain(random_3filter(0.0, 2.0))
             .chain(Reshape3to2::new())
             .chain(Map2One(random_blu(0.0, 0.5)))
-            .chain(random_2filter(64.0, 64.0))
+            .chain(random_2filter(0.0, 2.0))
+            .chain(Map2One(random_blu(0.0, 0.5)))
+            .chain(random_2filter(4.0, 1.0))
     };
 
     loop {
