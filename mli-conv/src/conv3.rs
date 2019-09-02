@@ -9,6 +9,12 @@ type D = ndarray::Ix3;
 #[derive(Clone, Debug)]
 pub struct Conv3<S>(Array3<f32>, PhantomData<S>);
 
+impl<S> Conv3<S> {
+    pub fn new(filter: Array3<f32>) -> Self {
+        Self(filter, PhantomData)
+    }
+}
+
 impl<S> Forward for Conv3<S>
 where
     S: Data<Elem = f32>,

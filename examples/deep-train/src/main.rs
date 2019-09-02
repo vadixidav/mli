@@ -1,11 +1,11 @@
 use image::ImageResult;
 use mli::{Backward, Forward, Graph, Train};
-use mli_conv::Conv2;
-use mli_ndarray::Map2One;
+use mli_conv::{Conv2, Conv2n, Conv3};
+use mli_ndarray::{Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
 use ndarray::{array, s, Array, Array2, OwnedRepr};
 use ndarray_image::{open_gray_image, save_gray_image};
-use rand_core::SeedableRng;
+use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
 use std::path::{Path, PathBuf};
@@ -62,109 +62,70 @@ fn main() -> ImageResult<()> {
     let opt = Opt::from_args();
     let image = open_image(opt.file)?;
     let sobel_image = sobel(&image);
-    let conv_layers = 5;
+    let conv_layers = 3;
     let filter_radius = 1usize;
-    let filter_len = (filter_radius * 2 + 1).pow(2);
+    let filter_depth = 4usize;
+    let filter_area = (filter_radius * 2 + 1).pow(2);
+    let filter_volume = filter_area * filter_depth;
     let padding = (conv_layers * filter_radius - 1) as i32;
     #[allow(clippy::deref_addrof)]
     let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
     save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
-    let mut prng = Pcg64::from_seed([
-        (opt.seed & 0xFF) as u8,
-        ((opt.seed >> 8) & 0xFF) as u8,
-        ((opt.seed >> 16) & 0xFF) as u8,
-        ((opt.seed >> 24) & 0xFF) as u8,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    ]);
-    let mut random_filter = |mean: f32, variance: f32| -> Conv2<OwnedRepr<f32>> {
-        // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
+    let mut prng = make_prng(opt.seed);
+    let mut prng_2filter = make_prng(prng.next_u32());
+    let mut random_2filter = |mean: f32, variance: f32| -> Conv2<OwnedRepr<f32>> {
+        // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
         Conv2::new(
             Array::from_iter(
-                Normal::new(mean / filter_len as f32, variance / filter_len as f32)
+                Normal::new(mean / filter_area as f32, variance / filter_area as f32)
                     .unwrap()
-                    .sample_iter(&mut prng)
-                    .take(filter_len),
+                    .sample_iter(&mut prng_2filter)
+                    .take(filter_area),
             )
             .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
             .unwrap(),
         )
     };
-    let mut prng = Pcg64::from_seed([
-        (opt.seed & 0xFF) as u8,
-        ((opt.seed >> 8) & 0xFF) as u8,
-        ((opt.seed >> 16) & 0xFF) as u8,
-        ((opt.seed >> 24) & 0xFF) as u8,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    ]);
+    let mut prng_2nfilter = make_prng(prng.next_u32());
+    let mut random_2nfilter = |mean: f32, variance: f32| -> Conv2n<OwnedRepr<f32>> {
+        // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
+        Conv2n::new(
+            Array::from_iter(
+                Normal::new(mean / filter_area as f32, variance / filter_area as f32)
+                    .unwrap()
+                    .sample_iter(&mut prng_2nfilter)
+                    .take(filter_volume),
+            )
+            .into_shape((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
+            .unwrap(),
+        )
+    };
+    let mut prng_3filter = make_prng(prng.next_u32());
+    let mut random_3filter = |mean: f32, variance: f32| -> Conv3<OwnedRepr<f32>> {
+        // Xavier initialize by changing the variance to be 1/N where N is the volume of the filter.
+        Conv3::new(
+            Array::from_iter(
+                Normal::new(mean / filter_volume as f32, variance / filter_volume as f32)
+                    .unwrap()
+                    .sample_iter(&mut prng_3filter)
+                    .take(filter_volume),
+            )
+            .into_shape((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
+            .unwrap(),
+        )
+    };
     let mut random_blu = |mean: f32, variance: f32| -> Blu {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         let distr = Normal::new(mean, variance).unwrap();
         Blu::new(distr.sample(&mut prng), distr.sample(&mut prng))
     };
     let mut generate_filter = || {
-        random_filter(0.0, 10.0f32.powi(0))
+        random_2nfilter(0.0, 1.0)
+            .chain(Map3One(random_blu(0.0, 0.05)))
+            .chain(random_3filter(0.0, 1.0))
+            .chain(Reshape3to2::new())
             .chain(Map2One(random_blu(0.0, 0.05)))
-            .chain(random_filter(0.0, 10.0f32.powi(0)))
-            .chain(Map2One(random_blu(0.0, 0.05)))
-            .chain(random_filter(0.0, 10.0f32.powi(0)))
-            .chain(Map2One(random_blu(0.0, 0.05)))
-            .chain(random_filter(0.0, 10.0f32.powi(0)))
-            .chain(Map2One(random_blu(0.0, 0.05)))
-            .chain(random_filter(64.0, 10.0f32.powi(3)))
+            .chain(random_2filter(8.0, 16.0))
     };
 
     loop {
@@ -185,25 +146,13 @@ fn main() -> ImageResult<()> {
             if i % opt.show_every == 0 {
                 save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
             }
+            if i == opt.epochs - 1 {
+                eprintln!("Finished!");
+                return Ok(());
+            }
             // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
             let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
             eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
-            if i > 15 && loss > 80000.0 {
-                eprintln!("loss > 80000.0 at epoch {}; starting over", i);
-                break;
-            }
-            if i > 50 && loss > 70000.0 {
-                eprintln!("loss > 70000.0 at epoch {}; starting over", i);
-                break;
-            }
-            if i > 150 && loss > 60000.0 {
-                eprintln!("loss > 60000.0 at epoch {}; starting over", i);
-                break;
-            }
-            if i > 500 && loss > 30000.0 {
-                eprintln!("loss > 60000.0 at epoch {}; starting over", i);
-                break;
-            }
             if !loss.is_normal() {
                 eprintln!("abnormal loss at epoch {}; starting over", i);
                 break;
@@ -223,4 +172,41 @@ fn main() -> ImageResult<()> {
             learn_rate *= opt.learning_rate_multiplier;
         }
     }
+}
+
+fn make_prng(seed: u32) -> Pcg64 {
+    Pcg64::from_seed([
+        (seed & 0xFF) as u8,
+        ((seed >> 8) & 0xFF) as u8,
+        ((seed >> 16) & 0xFF) as u8,
+        ((seed >> 24) & 0xFF) as u8,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ])
 }

@@ -76,10 +76,7 @@ where
             1,
             "did not expect dimension other than 1"
         );
-        let input_delta_shape = (input_delta.shape()[1], input_delta.shape()[2]);
-        let input_delta = input_delta
-            .into_shape(input_delta_shape)
-            .expect("unable to reshape in conv2d");
+        let input_delta = input_delta.index_axis_move(Axis(0), 0);
 
         let train_delta = input
             .windows(filter_dims)
