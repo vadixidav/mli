@@ -138,6 +138,7 @@ fn main() -> ImageResult<()> {
             let (internal, output) = train_filter.forward(&image);
             train_filter.backward_train(&image, &internal, &output)
         };
+        let mut last_loss = 0.0;
         momentum *= 0.0f32;
         for i in 0..opt.epochs {
             // Compute beta * momentum.
@@ -155,7 +156,14 @@ fn main() -> ImageResult<()> {
             let output_len = output.len() as f32;
             // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
             let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum() / output_len;
-            eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
+            eprintln!(
+                "epoch {:04} loss: {} ({:+}%), learn_rate: {}",
+                i,
+                loss,
+                (loss - last_loss) / last_loss * 100.0,
+                learn_rate
+            );
+            last_loss = loss;
             if !loss.is_normal() {
                 eprintln!("abnormal loss at epoch {}; starting over", i);
                 break;
