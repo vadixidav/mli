@@ -1,27 +1,10 @@
+use crate::convolve3;
 use mli::*;
 use mli_ndarray::Ndeep;
-use ndarray::{s, Array, Array3, ArrayBase, ArrayView3, Data, OwnedRepr};
+use ndarray::{s, Array, Array3, ArrayBase, Data, OwnedRepr};
 use std::marker::PhantomData;
 
 type D = ndarray::Ix3;
-
-fn convolve<'a>(signal: ArrayView3<'a, f32>, filter: ArrayView3<'a, f32>) -> Array3<f32> {
-    let filter_dims = filter.raw_dim();
-    let output_dims = (
-        signal.shape()[0] + 1 - filter_dims[0],
-        signal.shape()[1] + 1 - filter_dims[1],
-        signal.shape()[2] + 1 - filter_dims[2],
-    );
-    Array::from_shape_vec(
-        output_dims,
-        signal
-            .windows(filter_dims)
-            .into_iter()
-            .map(|view| (view.to_owned() * filter).sum())
-            .collect(),
-    )
-    .expect("convolution produced incorrectly sized output")
-}
 
 #[derive(Clone, Debug)]
 pub struct Conv3<S>(Array3<f32>, PhantomData<S>);
@@ -36,7 +19,7 @@ where
 
     fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
         let Self(filter, _) = self;
-        ((), convolve(input.view(), filter.view()))
+        ((), convolve3(input.view(), filter.view()))
     }
 }
 
@@ -82,7 +65,7 @@ where
         ])
         .assign(output_delta);
         #[allow(clippy::deref_addrof)]
-        let input_delta = convolve(pad.view(), filter.slice(s![..;-1, ..;-1, ..;-1]));
+        let input_delta = convolve3(pad.view(), filter.slice(s![..;-1, ..;-1, ..;-1]));
 
         let train_delta = input
             .windows(filter_dims)
