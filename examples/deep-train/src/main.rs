@@ -15,13 +15,13 @@ use structopt::StructOpt;
 #[structopt(name = "image", about = "Loads and convolves an image as a test")]
 struct Opt {
     /// Number of epochs
-    #[structopt(short = "t", default_value = "2000")]
+    #[structopt(short = "t", default_value = "4000")]
     epochs: usize,
     /// Number of epochs per output image
     #[structopt(short = "s", default_value = "1")]
     show_every: usize,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.000000001")]
+    #[structopt(short = "i", default_value = "0.0000000005")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
     #[structopt(short = "m", default_value = "1.003")]
@@ -64,7 +64,7 @@ fn main() -> ImageResult<()> {
     let sobel_image = sobel(&image);
     let conv_layers = 3;
     let filter_radius = 1usize;
-    let filter_depth = 4usize;
+    let filter_depth = 16usize;
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
     let padding = (conv_layers * filter_radius - 1) as i32;
@@ -120,12 +120,12 @@ fn main() -> ImageResult<()> {
         Blu::new(distr.sample(&mut prng), distr.sample(&mut prng))
     };
     let mut generate_filter = || {
-        random_2nfilter(0.0, 1.0)
-            .chain(Map3One(random_blu(0.0, 0.05)))
-            .chain(random_3filter(0.0, 1.0))
+        random_2nfilter(0.0, 2.0)
+            .chain(Map3One(random_blu(0.0, 0.5)))
+            .chain(random_3filter(0.0, 2.0))
             .chain(Reshape3to2::new())
-            .chain(Map2One(random_blu(0.0, 0.05)))
-            .chain(random_2filter(8.0, 16.0))
+            .chain(Map2One(random_blu(0.0, 0.5)))
+            .chain(random_2filter(64.0, 64.0))
     };
 
     loop {
