@@ -21,7 +21,7 @@ struct Opt {
     #[structopt(short = "s", default_value = "1")]
     show_every: usize,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.0000000005")]
+    #[structopt(short = "i", default_value = "0.0005")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
     #[structopt(short = "m", default_value = "1.001")]
@@ -152,8 +152,9 @@ fn main() -> ImageResult<()> {
                 eprintln!("Finished!");
                 return Ok(());
             }
+            let output_len = output.len() as f32;
             // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
-            let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum();
+            let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum() / output_len;
             eprintln!("epoch {:04} loss: {}, learn_rate: {}", i, loss, learn_rate);
             if !loss.is_normal() {
                 eprintln!("abnormal loss at epoch {}; starting over", i);
@@ -161,7 +162,7 @@ fn main() -> ImageResult<()> {
             }
             // The loss function is (n - t)^2, so 2*(n - t) is dE/df where
             // `E` is loss and `f` is output.
-            let delta_loss = (output - expected).map(|n| 2.0 * n);
+            let delta_loss = (output - expected).map(|n| 2.0 * n / output_len);
             // Compute the output delta.
             let output_delta = -learn_rate * delta_loss;
             // Compute the trainable variable delta.
