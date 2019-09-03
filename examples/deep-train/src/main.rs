@@ -24,13 +24,13 @@ struct Opt {
     #[structopt(short = "p", default_value = "0.1")]
     prestart_learning_rate: f32,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.5")]
+    #[structopt(short = "i", default_value = "0.3")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
     #[structopt(short = "m", default_value = "0.999")]
     learning_rate_multiplier: f32,
     /// Seed
-    #[structopt(short = "z", default_value = "32")]
+    #[structopt(short = "z", default_value = "41")]
     seed: u32,
     /// Beta value for NAG
     #[structopt(short = "b", default_value = "0.9")]
