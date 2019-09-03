@@ -20,14 +20,17 @@ struct Opt {
     /// Number of epochs per output image
     #[structopt(short = "s", default_value = "1")]
     show_every: usize,
+    /// Pre-start learning rate (for first 10 epochs)
+    #[structopt(short = "p", default_value = "0.1")]
+    prestart_learning_rate: f32,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.0005")]
+    #[structopt(short = "i", default_value = "0.5")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
-    #[structopt(short = "m", default_value = "1.001")]
+    #[structopt(short = "m", default_value = "0.999")]
     learning_rate_multiplier: f32,
     /// Seed
-    #[structopt(short = "z", default_value = "42")]
+    #[structopt(short = "z", default_value = "32")]
     seed: u32,
     /// Beta value for NAG
     #[structopt(short = "b", default_value = "0.9")]
@@ -64,7 +67,7 @@ fn main() -> ImageResult<()> {
     let sobel_image = sobel(&image);
     let conv_layers = 4;
     let filter_radius = 1usize;
-    let filter_depth = 24usize;
+    let filter_depth = 2usize;
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
     let padding = (conv_layers * filter_radius - 1) as i32;
@@ -120,14 +123,14 @@ fn main() -> ImageResult<()> {
         Blu::new(distr.sample(&mut prng), distr.sample(&mut prng))
     };
     let mut generate_filter = || {
-        random_2nfilter(0.0, 2.0)
+        random_2nfilter(0.0, 4.0)
             .chain(Map3One(random_blu(0.0, 0.5)))
-            .chain(random_3filter(0.0, 2.0))
+            .chain(random_3filter(0.0, 4.0))
             .chain(Reshape3to2::new())
             .chain(Map2One(random_blu(0.0, 0.5)))
-            .chain(random_2filter(0.0, 2.0))
+            .chain(random_2filter(0.0, 4.0))
             .chain(Map2One(random_blu(0.0, 0.5)))
-            .chain(random_2filter(4.0, 1.0))
+            .chain(random_2filter(0.0, 4.0))
     };
 
     loop {
@@ -154,6 +157,13 @@ fn main() -> ImageResult<()> {
                 return Ok(());
             }
             let output_len = output.len() as f32;
+            let local_learn_rate = if i < 10 {
+                opt.prestart_learning_rate
+            } else {
+                let llr = learn_rate;
+                learn_rate *= opt.learning_rate_multiplier;
+                llr
+            };
             // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
             let loss = (output.clone() - expected.view()).map(|n| n.powi(2)).sum() / output_len;
             eprintln!(
@@ -161,7 +171,7 @@ fn main() -> ImageResult<()> {
                 i,
                 loss,
                 (loss - last_loss) / last_loss * 100.0,
-                learn_rate
+                local_learn_rate
             );
             last_loss = loss;
             if !loss.is_normal() {
@@ -172,7 +182,7 @@ fn main() -> ImageResult<()> {
             // `E` is loss and `f` is output.
             let delta_loss = (output - expected).map(|n| 2.0 * n / output_len);
             // Compute the output delta.
-            let output_delta = -learn_rate * delta_loss;
+            let output_delta = -local_learn_rate * delta_loss;
             // Compute the trainable variable delta.
             let mut train_delta = train_filter.backward_train(&image, &internal, &output_delta);
             // Make the train delta a small component.
@@ -180,7 +190,6 @@ fn main() -> ImageResult<()> {
             train_filter.train(&train_delta);
             // Add the small component to the momentum.
             momentum += train_delta;
-            learn_rate *= opt.learning_rate_multiplier;
         }
     }
 }
