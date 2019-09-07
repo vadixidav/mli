@@ -6,6 +6,7 @@ members = [
     "mli-relu",
     "mli-conv",
     "mli-sigmoid",
+    "mli-defconv",
     "examples/sobel",
     "examples/deep-train",
 ]
