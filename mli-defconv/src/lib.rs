@@ -1,4 +1,5 @@
 use arraymap::ArrayMap;
+use itertools::Itertools;
 use mli::*;
 use mli_ndarray::Ndeep;
 use ndarray::{s, Array, Array1, Array2, ArrayBase, ArrayView1, Data, OwnedRepr};
@@ -51,13 +52,13 @@ impl DefConvInput {
         let (f, rc) = self.extract_corners(coordinate);
 
         // Perform the x interpolation.
-        let fy = [
+        let fx = [
             (1.0 - rc[0]) * f[0] + rc[0] * f[1],
             (1.0 - rc[0]) * f[2] + rc[0] * f[3],
         ];
 
         // Perform the y interpolation.
-        (1.0 - rc[1]) * fy[0] + rc[1] * fy[1]
+        (1.0 - rc[1]) * fx[0] + rc[1] * fx[1]
     }
 
     /// Looks up a gradient from a location in the features using bilinear interpolation and zero-padding.
@@ -65,14 +66,14 @@ impl DefConvInput {
         // Extract the corner features and the relative coordinate.
         let (f, rc) = self.extract_corners(coordinate);
 
-        // Perform the x interpolation.
-        let fy = [
+        // Perform the y interpolation to get the x values.
+        let fx = [
             (1.0 - rc[0]) * f[0] + rc[0] * f[1],
             (1.0 - rc[0]) * f[2] + rc[0] * f[3],
         ];
 
-        // Perform the y interpolation.
-        let fx = [
+        // Perform the x interpolation to get the y values.
+        let fy = [
             (1.0 - rc[1]) * f[0] + rc[1] * f[2],
             (1.0 - rc[1]) * f[1] + rc[1] * f[3],
         ];
@@ -94,5 +95,41 @@ impl DefConv2 {
             weights,
             output_shape,
         }
+    }
+}
+
+impl Forward for DefConv2 {
+    type Input = DefConvInput;
+    type Internal = ();
+    type Output = Array2<f32>;
+
+    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+        // Get shapes.
+        let outshape = self.output_shape;
+        let inshape = input.features.shape();
+
+        // Compute the coordinate multiplier.
+        let multipliers = [
+            inshape[0] as f32 / outshape[0] as f32,
+            inshape[1] as f32 / outshape[1] as f32,
+        ];
+
+        // Compute bilinear interpolation for (y, x) pairs.
+        (
+            (),
+            Array::from_shape_vec(
+                outshape,
+                (0..outshape[0])
+                    .cartesian_product(0..outshape[1])
+                    .map(|(y, x)| {
+                        input.bilinear([
+                            (y as f32 + 0.5) * multipliers[0],
+                            (x as f32 + 0.5) * multipliers[1],
+                        ])
+                    })
+                    .collect(),
+            )
+            .expect("mli-defconv: unexpected shape vec"),
+        )
     }
 }
