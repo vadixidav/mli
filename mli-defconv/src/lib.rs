@@ -2,11 +2,9 @@ use arraymap::ArrayMap;
 use itertools::Itertools;
 use mli::*;
 use mli_ndarray::Ndeep;
-use ndarray::{s, Array, Array1, Array2, ArrayBase, ArrayView1, Data, OwnedRepr};
-use std::marker::PhantomData;
+use ndarray::{Array, Array1, Array2, OwnedRepr};
 
 type D1 = ndarray::Ix1;
-type D2 = ndarray::Ix2;
 
 fn corners(coordinate: [f32; 2]) -> [[isize; 2]; 4] {
     let c00 = coordinate.map(|f| f.floor() as isize);
@@ -173,6 +171,7 @@ impl Backward for DefConv2 {
         // We cannot determine in advance what locations are affected
         let mut feature_deltas: Array2<f32> = Array2::zeros(inshape);
         let mut offset_deltas: Array2<f32> = Array2::zeros(input.offsets.raw_dim());
+        let mut weight_deltas: Array1<f32> = Array1::zeros(self.weights.raw_dim());
 
         for (y, x) in (0..outshape[0]).cartesian_product(0..outshape[1]) {
             let output_delta = output_delta[[y, x]];
@@ -218,6 +217,9 @@ impl Backward for DefConv2 {
                     multipliers[0] * position_gradient[0] * weight * output_delta;
                 offset_deltas[[ix, 1]] +=
                     multipliers[1] * position_gradient[1] * weight * output_delta;
+
+                // TODO: This is incredibly inefficient recomputing the entire bilinear interpolation. Use internals to store it.
+                weight_deltas[ix] += input.bilinear(sample_coordinate) * output_delta;
             }
         }
 
@@ -227,7 +229,7 @@ impl Backward for DefConv2 {
                 features: feature_deltas,
                 offsets: offset_deltas,
             },
-            unimplemented!(),
+            Ndeep(weight_deltas),
         )
     }
 }
