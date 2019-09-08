@@ -68,9 +68,22 @@
 
 mod chain;
 pub use chain::*;
-
 mod chain_data;
 pub use chain_data::*;
+mod zip;
+pub use zip::*;
+
+pub trait Graph: Train + Sized {
+    fn chain<U>(self, other: U) -> Chain<Self, U> {
+        Chain(self, other)
+    }
+
+    fn zip<U>(self, other: U) -> Zip<Self, U> {
+        Zip(self, other)
+    }
+}
+
+impl<T> Graph for T where T: Train {}
 
 /// This trait is for algorithms that have an input and produce an output.
 pub trait Forward {
@@ -178,14 +191,6 @@ pub trait Train: Backward {
         input_delta
     }
 }
-
-pub trait Graph: Train + Sized {
-    fn chain<U>(self, other: U) -> Chain<Self, U> {
-        Chain(self, other)
-    }
-}
-
-impl<T> Graph for T where T: Train {}
 
 impl<'a, T> Forward for &'a T
 where
