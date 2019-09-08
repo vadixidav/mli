@@ -1,10 +1,11 @@
 use arraymap::ArrayMap;
 use itertools::Itertools;
 use mli::*;
-use mli_ndarray::Ndeep;
+use mli_ndarray::{Ndeep, Variable};
 use ndarray::{Array, Array1, Array2, OwnedRepr};
 
 type D1 = ndarray::Ix1;
+type D2 = ndarray::Ix2;
 
 fn corners(coordinate: [f32; 2]) -> [[isize; 2]; 4] {
     let c00 = coordinate.map(|f| f.floor() as isize);
@@ -32,9 +33,9 @@ fn bilinear_position_gradient(f: [f32; 4], rc: [f32; 2]) -> [f32; 2] {
     [fy[1] - fy[0], fx[1] - fx[0]]
 }
 
-pub struct DefConvData<'a> {
-    pub features: &'a Array2<f32>,
-    pub offsets: &'a Array2<f32>,
+struct DefConvData<'a> {
+    features: &'a Array2<f32>,
+    offsets: &'a Array2<f32>,
 }
 
 impl<'a> DefConvData<'a> {
@@ -227,5 +228,48 @@ impl Backward for DefConv2 {
 
         // Compute bilinear interpolation for (y, x) pairs.
         ((feature_deltas, offset_deltas), Ndeep(weight_deltas))
+    }
+}
+
+pub struct DefConv2InternalOffsets {
+    def_conv: DefConv2,
+    offsets: Variable<f32, D2>,
+}
+
+impl DefConv2InternalOffsets {
+    pub fn new(weights: Array1<f32>, offsets: Array2<f32>, output_shape: [usize; 2]) -> Self {
+        Self {
+            def_conv: DefConv2::new(weights, output_shape),
+            offsets: Variable(offsets),
+        }
+    }
+}
+
+impl Forward for DefConv2InternalOffsets {
+    type Input = Array2<f32>;
+    type Internal = ();
+    type Output = Array2<f32>;
+
+    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+        self.def_conv
+            .forward(&(input.clone(), self.offsets.0.clone()))
+    }
+}
+
+impl Backward for DefConv2InternalOffsets {
+    type OutputDelta = Array2<f32>;
+    type InputDelta = Array2<f32>;
+    type TrainDelta = ChainData<Ndeep<OwnedRepr<f32>, D1>, Ndeep<OwnedRepr<f32>, D2>>;
+
+    fn backward(
+        &self,
+        input: &Self::Input,
+        _: &Self::Internal,
+        output_delta: &Self::OutputDelta,
+    ) -> (Self::InputDelta, Self::TrainDelta) {
+        let ((input_delta, offset_delta), weight_delta) =
+            self.def_conv
+                .backward(&(input.clone(), self.offsets.0.clone()), &(), output_delta);
+        (input_delta, ChainData(weight_delta, Ndeep(offset_delta)))
     }
 }
