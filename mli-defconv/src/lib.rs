@@ -92,8 +92,8 @@ impl<'a> DefConvData<'a> {
 
 #[derive(Clone, Debug)]
 pub struct DefConv2 {
-    weights: Array1<f32>,
-    output_shape: [usize; 2],
+    pub weights: Array1<f32>,
+    pub output_shape: [usize; 2],
 }
 
 impl DefConv2 {
@@ -238,8 +238,8 @@ impl Train for DefConv2 {
 }
 
 pub struct DefConv2InternalOffsets {
-    def_conv: DefConv2,
-    offsets: Variable<f32, D2>,
+    pub def_conv: DefConv2,
+    pub offsets: Variable<f32, D2>,
 }
 
 impl DefConv2InternalOffsets {

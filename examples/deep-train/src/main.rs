@@ -4,8 +4,8 @@ use mli_conv::{Conv2, Conv2n, Conv3};
 use mli_defconv::DefConv2InternalOffsets;
 use mli_ndarray::{Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
-use ndarray::{array, s, Array, Array2, OwnedRepr};
-use ndarray_image::{open_gray_image, save_gray_image};
+use ndarray::{array, s, Array, Array2, Array3, OwnedRepr};
+use ndarray_image::{open_gray_image, save_gray_image, save_image, Colors};
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
@@ -57,9 +57,14 @@ fn open_image(path: impl AsRef<Path>) -> ImageResult<Array2<f32>> {
     Ok(image.map(|&n| f32::from(n) / 255.0))
 }
 
-fn save_image(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
+fn save_image_internal(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
     let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
     save_gray_image(path, image.view())
+}
+
+fn save_image_color_internal(path: impl AsRef<Path>, image: &Array3<f32>) -> ImageResult<()> {
+    let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
+    save_image(path, image.view(), Colors::Rgb)
 }
 
 fn main() -> ImageResult<()> {
@@ -74,7 +79,7 @@ fn main() -> ImageResult<()> {
     let padding = (conv_layers * filter_radius - 1) as i32;
     #[allow(clippy::deref_addrof)]
     let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
-    save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
+    save_image_internal(opt.output_dir.join("actual.png"), &expected.to_owned())?;
     let mut prng = make_prng(opt.seed);
     let mut prng_defconv = make_prng(prng.next_u32());
     let mut random_defconv =
@@ -90,7 +95,7 @@ fn main() -> ImageResult<()> {
                 .into_shape(samples)
                 .unwrap(),
                 Array::from_iter(
-                    Normal::new(0.0, 0.75)
+                    Normal::new(0.0, 5.0)
                         .unwrap()
                         .sample_iter(&mut prng_defconv)
                         .take(2 * samples),
@@ -177,7 +182,46 @@ fn main() -> ImageResult<()> {
             let (internal, output) = train_filter.forward(&image);
             // Show the image if the frame is divisible by show_every.
             if i % opt.show_every == 0 {
-                save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
+                // Plot the sample locations from the deformable conv net in the center.
+                let mut splat: Array3<f32> = Array::zeros([1024, 1024, 3]);
+                let defconv = &(((((((train_filter.0).0).0).0).0).0).0).0;
+                // Get the weight distance so we can normalize the weights.
+                let weight_distance = defconv
+                    .def_conv
+                    .weights
+                    .iter()
+                    .map(|&n| n.powi(2))
+                    .sum::<f32>()
+                    .sqrt();
+                // Draw all the offsets and weights.
+                for (offset, &weight) in defconv
+                    .offsets
+                    .0
+                    .outer_iter()
+                    .zip(defconv.def_conv.weights.iter())
+                {
+                    let splat_offset = [
+                        (offset[0] * 32.0 + splat.shape()[0] as f32 / 2.0).round(),
+                        (offset[1] * 32.0 + splat.shape()[1] as f32 / 2.0).round(),
+                    ];
+                    if splat_offset[0] >= 0.0
+                        && splat_offset[0] < splat.shape()[0] as f32
+                        && splat_offset[1] >= 0.0
+                        && splat_offset[1] < splat.shape()[1] as f32
+                    {
+                        splat[[splat_offset[0] as usize, splat_offset[1] as usize, 0]] =
+                            weight / weight_distance;
+                        splat[[splat_offset[0] as usize, splat_offset[1] as usize, 1]] =
+                            1.0 - weight / weight_distance;
+                    }
+                }
+                // Draw the output for the epoch.
+                save_image_internal(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
+                // Draw the splat for the epoch.
+                save_image_color_internal(
+                    opt.output_dir.join(format!("splat{:04}.png", i)),
+                    &splat,
+                )?;
             }
             if i == opt.epochs - 1 {
                 eprintln!("Finished!");
