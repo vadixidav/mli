@@ -16,6 +16,24 @@ fn corners(coordinate: [f32; 2]) -> [[isize; 2]; 4] {
     [c00, c01, c10, c11]
 }
 
+/// Looks up a position gradient from a location in the features using bilinear interpolation and zero-padding.
+fn bilinear_position_gradient(f: [f32; 4], rc: [f32; 2]) -> [f32; 2] {
+    // Perform the y interpolation to get the x values.
+    let fx = [
+        (1.0 - rc[0]) * f[0] + rc[0] * f[2],
+        (1.0 - rc[0]) * f[1] + rc[0] * f[3],
+    ];
+
+    // Perform the x interpolation to get the y values.
+    let fy = [
+        (1.0 - rc[1]) * f[0] + rc[1] * f[1],
+        (1.0 - rc[1]) * f[2] + rc[1] * f[3],
+    ];
+
+    // The gradient is the difference between the interpolation values in each dimension.
+    [fy[1] - fy[0], fx[1] - fx[0]]
+}
+
 pub struct DefConvData {
     pub offsets: Array2<f32>,
     pub features: Array2<f32>,
@@ -52,18 +70,15 @@ impl DefConvData {
     }
 
     /// Extracts the corner features and relative coordinate for a bilinear interpolation.
-    fn extract_corners(&self, coordinate: [f32; 2]) -> ([f32; 4], [f32; 2]) {
-        let (validated_corners, rc) = self.validate_corners(coordinate);
-        (
-            validated_corners.map(|c| c.as_ref().map(|&c| self.features[c]).unwrap_or(0.0)),
-            rc,
-        )
+    fn extract_corners(&self, validated_corners: [Option<[usize; 2]>; 4]) -> [f32; 4] {
+        validated_corners.map(|c| c.as_ref().map(|&c| self.features[c]).unwrap_or(0.0))
     }
 
     /// Looks up a location in the features using bilinear interpolation and zero-padding.
     fn bilinear(&self, coordinate: [f32; 2]) -> f32 {
         // Extract the corner features and the relative coordinate.
-        let (f, rc) = self.extract_corners(coordinate);
+        let (validated_corners, rc) = self.validate_corners(coordinate);
+        let f = self.extract_corners(validated_corners);
 
         // Perform the y interpolation.
         let fx = [
@@ -73,27 +88,6 @@ impl DefConvData {
 
         // Perform the x interpolation.
         (1.0 - rc[1]) * fx[0] + rc[1] * fx[1]
-    }
-
-    /// Looks up a position gradient from a location in the features using bilinear interpolation and zero-padding.
-    fn bilinear_position_gradient(&self, coordinate: [f32; 2]) -> [f32; 2] {
-        // Extract the corner features and the relative coordinate.
-        let (f, rc) = self.extract_corners(coordinate);
-
-        // Perform the y interpolation to get the x values.
-        let fx = [
-            (1.0 - rc[0]) * f[0] + rc[0] * f[2],
-            (1.0 - rc[0]) * f[1] + rc[0] * f[3],
-        ];
-
-        // Perform the x interpolation to get the y values.
-        let fy = [
-            (1.0 - rc[1]) * f[0] + rc[1] * f[1],
-            (1.0 - rc[1]) * f[2] + rc[1] * f[3],
-        ];
-
-        // The gradient is the difference between the interpolation values in each dimension.
-        [fy[1] - fy[0], fx[1] - fx[0]]
     }
 }
 
@@ -178,15 +172,27 @@ impl Backward for DefConv2 {
 
         // We cannot determine in advance what locations are affected
         let mut feature_deltas: Array2<f32> = Array2::zeros(inshape);
+        let mut offset_deltas: Array2<f32> = Array2::zeros(input.offsets.raw_dim());
 
         for (y, x) in (0..outshape[0]).cartesian_product(0..outshape[1]) {
-            for (weight, offset) in self.weights.iter().zip(input.offsets.outer_iter()) {
+            let output_delta = output_delta[[y, x]];
+            for (ix, (weight, offset)) in self
+                .weights
+                .iter()
+                .zip(input.offsets.outer_iter())
+                .enumerate()
+            {
+                // Compute the original sample coordinate.
                 let sample_coordinate = [
                     (y as f32 + 0.5 + offset[0]) * multipliers[0],
                     (x as f32 + 0.5 + offset[1]) * multipliers[1],
                 ];
-                let (coords, rc) = input.validate_corners(sample_coordinate);
-                for (coord, coeff) in coords.iter().zip(
+
+                // Find the corners if they are within the input.
+                let (validated_corners, rc) = input.validate_corners(sample_coordinate);
+
+                // Loop over all the corners and the amount each contributed.
+                for (coord, coeff) in validated_corners.iter().zip(
                     [
                         (1.0 - rc[0]) * (1.0 - rc[1]),
                         (1.0 - rc[0]) * rc[1],
@@ -195,10 +201,23 @@ impl Backward for DefConv2 {
                     ]
                     .iter(),
                 ) {
+                    // If the coordinate was in bounds of the input tensor.
                     if let Some(coord) = coord {
-                        feature_deltas[*coord] += coeff * weight * output_delta[[y, x]];
+                        // Add the contribution.
+                        feature_deltas[*coord] += coeff * weight * output_delta;
                     }
                 }
+
+                // Compute the position gradients.
+                let f = input.extract_corners(validated_corners);
+                let position_gradient = bilinear_position_gradient(f, rc);
+                // Compute and add the offset gradients based on the position gradients and chain rule.
+                // The multipliers affect the gradient of the position because they multiply the sampling locations.
+                // The greater the weight the greater the effect on sampling location because the output is multiplied by the weight.
+                offset_deltas[[ix, 0]] +=
+                    multipliers[0] * position_gradient[0] * weight * output_delta;
+                offset_deltas[[ix, 1]] +=
+                    multipliers[1] * position_gradient[1] * weight * output_delta;
             }
         }
 
@@ -206,7 +225,7 @@ impl Backward for DefConv2 {
         (
             DefConvData {
                 features: feature_deltas,
-                offsets: unimplemented!(),
+                offsets: offset_deltas,
             },
             unimplemented!(),
         )
