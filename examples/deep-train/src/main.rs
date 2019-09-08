@@ -124,13 +124,13 @@ fn main() -> ImageResult<()> {
     };
     let mut generate_filter = || {
         random_2nfilter(0.0, 4.0)
-            .chain(Map3One(random_blu(0.0, 0.5)))
-            .chain(random_3filter(0.0, 4.0))
-            .chain(Reshape3to2::new())
-            .chain(Map2One(random_blu(0.0, 0.5)))
-            .chain(random_2filter(0.0, 4.0))
-            .chain(Map2One(random_blu(0.0, 0.5)))
-            .chain(random_2filter(0.0, 4.0))
+            .map(Map3One(random_blu(0.0, 0.5)))
+            .map(random_3filter(0.0, 4.0))
+            .map(Reshape3to2::new())
+            .map(Map2One(random_blu(0.0, 0.5)))
+            .map(random_2filter(0.0, 4.0))
+            .map(Map2One(random_blu(0.0, 0.5)))
+            .map(random_2filter(0.0, 4.0))
     };
 
     loop {

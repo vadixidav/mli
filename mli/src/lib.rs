@@ -66,16 +66,16 @@
 
 #![no_std]
 
-mod chain;
-pub use chain::*;
+mod map;
+pub use map::*;
 mod chain_data;
 pub use chain_data::*;
 mod zip;
 pub use zip::*;
 
 pub trait Graph: Train + Sized {
-    fn chain<U>(self, other: U) -> Chain<Self, U> {
-        Chain(self, other)
+    fn map<U>(self, other: U) -> Map<Self, U> {
+        Map(self, other)
     }
 
     fn zip<U>(self, other: U) -> Zip<Self, U> {
