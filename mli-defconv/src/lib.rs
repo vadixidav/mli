@@ -32,12 +32,12 @@ fn bilinear_position_gradient(f: [f32; 4], rc: [f32; 2]) -> [f32; 2] {
     [fy[1] - fy[0], fx[1] - fx[0]]
 }
 
-pub struct DefConvData {
-    pub offsets: Array2<f32>,
-    pub features: Array2<f32>,
+pub struct DefConvData<'a> {
+    pub features: &'a Array2<f32>,
+    pub offsets: &'a Array2<f32>,
 }
 
-impl DefConvData {
+impl<'a> DefConvData<'a> {
     fn validate_corners(&self, coordinate: [f32; 2]) -> ([Option<[usize; 2]>; 4], [f32; 2]) {
         // Get the integer versions of four corners.
         let coords = corners(coordinate);
@@ -105,11 +105,12 @@ impl DefConv2 {
 }
 
 impl Forward for DefConv2 {
-    type Input = DefConvData;
+    type Input = (Array2<f32>, Array2<f32>);
     type Internal = ();
     type Output = Array2<f32>;
 
-    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+    fn forward(&self, (features, offsets): &Self::Input) -> ((), Self::Output) {
+        let input = DefConvData { features, offsets };
         assert_eq!(self.weights.len(), input.offsets.shape()[0]);
         // Get shapes.
         let outshape = self.output_shape;
@@ -149,15 +150,16 @@ impl Forward for DefConv2 {
 
 impl Backward for DefConv2 {
     type OutputDelta = Array2<f32>;
-    type InputDelta = DefConvData;
+    type InputDelta = (Array2<f32>, Array2<f32>);
     type TrainDelta = Ndeep<OwnedRepr<f32>, D1>;
 
     fn backward(
         &self,
-        input: &Self::Input,
+        (features, offsets): &Self::Input,
         _: &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
+        let input = DefConvData { features, offsets };
         // Get shapes.
         let outshape = self.output_shape;
         let inshape = input.features.raw_dim();
@@ -224,12 +226,6 @@ impl Backward for DefConv2 {
         }
 
         // Compute bilinear interpolation for (y, x) pairs.
-        (
-            DefConvData {
-                features: feature_deltas,
-                offsets: offset_deltas,
-            },
-            Ndeep(weight_deltas),
-        )
+        ((feature_deltas, offset_deltas), Ndeep(weight_deltas))
     }
 }
