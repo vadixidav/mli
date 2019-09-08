@@ -1,6 +1,7 @@
 use image::ImageResult;
 use mli::{Backward, Forward, Graph, Train};
 use mli_conv::{Conv2, Conv2n, Conv3};
+use mli_defconv::DefConv2InternalOffsets;
 use mli_ndarray::{Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
 use ndarray::{array, s, Array, Array2, OwnedRepr};
@@ -75,6 +76,30 @@ fn main() -> ImageResult<()> {
     let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
     save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
     let mut prng = make_prng(opt.seed);
+    let mut prng_defconv = make_prng(prng.next_u32());
+    let mut random_defconv =
+        |samples: usize, mean: f32, variance: f32| -> DefConv2InternalOffsets {
+            // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
+            DefConv2InternalOffsets::new(
+                Array::from_iter(
+                    Normal::new(mean / samples as f32, variance / samples as f32)
+                        .unwrap()
+                        .sample_iter(&mut prng_defconv)
+                        .take(samples),
+                )
+                .into_shape(samples)
+                .unwrap(),
+                Array::from_iter(
+                    Normal::new(0.0, 0.75)
+                        .unwrap()
+                        .sample_iter(&mut prng_defconv)
+                        .take(2 * samples),
+                )
+                .into_shape((samples, 2))
+                .unwrap(),
+                [image.shape()[0], image.shape()[1]],
+            )
+        };
     let mut prng_2filter = make_prng(prng.next_u32());
     let mut random_2filter = |mean: f32, variance: f32| -> Conv2<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
@@ -117,13 +142,15 @@ fn main() -> ImageResult<()> {
             .unwrap(),
         )
     };
+    let mut prng_blu = make_prng(prng.next_u32());
     let mut random_blu = |mean: f32, variance: f32| -> Blu {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         let distr = Normal::new(mean, variance).unwrap();
-        Blu::new(distr.sample(&mut prng), distr.sample(&mut prng))
+        Blu::new(distr.sample(&mut prng_blu), distr.sample(&mut prng_blu))
     };
     let mut generate_filter = || {
-        random_2nfilter(0.0, 4.0)
+        random_defconv(10, 1.0, 0.5)
+            .map(random_2nfilter(0.0, 4.0))
             .map(Map3One(random_blu(0.0, 0.5)))
             .map(random_3filter(0.0, 4.0))
             .map(Reshape3to2::new())

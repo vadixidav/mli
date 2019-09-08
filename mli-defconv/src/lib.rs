@@ -231,6 +231,12 @@ impl Backward for DefConv2 {
     }
 }
 
+impl Train for DefConv2 {
+    fn train(&mut self, train_delta: &Self::TrainDelta) {
+        self.weights += &train_delta.0;
+    }
+}
+
 pub struct DefConv2InternalOffsets {
     def_conv: DefConv2,
     offsets: Variable<f32, D2>,
@@ -271,5 +277,13 @@ impl Backward for DefConv2InternalOffsets {
             self.def_conv
                 .backward(&(input.clone(), self.offsets.0.clone()), &(), output_delta);
         (input_delta, ChainData(weight_delta, Ndeep(offset_delta)))
+    }
+}
+
+impl Train for DefConv2InternalOffsets {
+    fn train(&mut self, train_deltas: &Self::TrainDelta) {
+        let ChainData(weight_deltas, offset_deltas) = train_deltas;
+        self.def_conv.train(weight_deltas);
+        self.offsets.train(offset_deltas);
     }
 }

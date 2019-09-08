@@ -1,5 +1,6 @@
+use crate::Ndeep;
 use mli::{Backward, Forward, Train};
-use ndarray::{Array, Dimension};
+use ndarray::{Array, Dimension, OwnedRepr};
 use std::ops::AddAssign;
 
 /// This wraps a D-dimesnional ndarray that acts as a constant input in a neural network.
@@ -27,7 +28,7 @@ where
 {
     type OutputDelta = Array<T, D>;
     type InputDelta = ();
-    type TrainDelta = Array<T, D>;
+    type TrainDelta = Ndeep<OwnedRepr<T>, D>;
 
     fn backward(
         &self,
@@ -35,7 +36,7 @@ where
         (): &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        ((), output_delta.clone())
+        ((), Ndeep(output_delta.clone()))
     }
 }
 
@@ -45,6 +46,6 @@ where
     D: Clone + Dimension,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        self.0 += train_delta;
+        self.0 += &train_delta.0;
     }
 }
