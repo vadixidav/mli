@@ -31,7 +31,7 @@ struct Opt {
     #[structopt(short = "m", default_value = "0.999")]
     learning_rate_multiplier: f32,
     /// Seed
-    #[structopt(short = "z", default_value = "41")]
+    #[structopt(short = "z", default_value = "34")]
     seed: u32,
     /// Beta value for NAG
     #[structopt(short = "b", default_value = "0.9")]
