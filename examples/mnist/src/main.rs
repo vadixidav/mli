@@ -3,17 +3,17 @@ use mli::{Forward, Graph, Train};
 use mli_conv::Conv2;
 use mli_ndarray::Map2One;
 use mli_relu::Blu;
-use ndarray::{array, s, Array, Array2};
+use mnist::{Mnist, MnistBuilder};
+use ndarray::{array, s, Array, Array2, ArrayView, ArrayView3};
 use ndarray_image::{open_gray_image, save_gray_image};
 use rand_core::SeedableRng;
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use mnist::{MnistBuilder, Mnist};
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "image", about = "Loads and convolves an image as a test")]
+#[structopt(name = "mnist", about = "An example of using MLI to classify MNIST")]
 struct Opt {
     /// Number of epochs
     #[structopt(short = "t", default_value = "2000")]
@@ -27,9 +27,9 @@ struct Opt {
     /// Learning rate multiplier per epoch
     #[structopt(short = "m", default_value = "1.003")]
     learning_rate_multiplier: f32,
-    /// File to load
+    /// Directory containing the MNIST files
     #[structopt(parse(from_os_str))]
-    file: PathBuf,
+    mnist_dir: PathBuf,
     /// Output directory
     #[structopt(parse(from_os_str))]
     output_dir: PathBuf,
@@ -53,18 +53,30 @@ fn save_image(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
     save_gray_image(path, image.view())
 }
 
+fn mnist_train<'a>(mnist: &'a Mnist) -> ArrayView3<'a, u8> {
+    ArrayView::from_shape((60000, 28, 28), mnist.trn_img.as_slice()).expect("mnist data corrupted")
+}
+
 fn main() -> ImageResult<()> {
     let opt = Opt::from_args();
     let mut prng = Pcg64::from_seed([0; 32]);
-    let image = open_image(opt.file)?;
-    let sobel_image = sobel(&image);
+    let mnist = MnistBuilder::new()
+        .base_path(&opt.mnist_dir.display().to_string())
+        .label_format_digit()
+        .finalize();
+    let train = mnist_train(&mnist);
+    let first_image = train.outer_iter().nth(2).unwrap();
+    println!("digit should be {}", mnist.trn_lbl[2]);
+    save_gray_image(opt.output_dir.join("test.png"), first_image.view())?;
+
+    ////////////////////////
+    // Defining the model //
+    ////////////////////////
+
     let conv_layers = 4;
     let filter_radius = 1usize;
     let filter_len = (filter_radius * 2 + 1).pow(2);
-    let padding = (conv_layers * filter_radius - 1) as i32;
-    #[allow(clippy::deref_addrof)]
-    let expected = sobel_image.slice(s![padding..-padding, padding..-padding]);
-    save_image(opt.output_dir.join("actual.png"), &expected.to_owned())?;
+
     let mut random_filter = |mean: f32, variance: f32| -> Array2<f32> {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         Array::from_iter(
@@ -83,8 +95,16 @@ fn main() -> ImageResult<()> {
         .chain(Conv2::new(random_filter(0.0, 9.0f32.powi(1))))
         .chain(Map2One(Blu::new(0.4, -0.2)))
         .chain(Conv2::new(random_filter(8.0, 9.0f32.powi(2))));
+
+    //////////////
+    // Training //
+    //////////////
+
     let mut learn_rate = opt.initial_learning_rate;
     for i in 0..opt.epochs {
+        for (train_image, &train_number) in train.outer_iter().zip(mnist.trn_lbl.iter()) {
+            
+        }
         let (internal, output) = train_filter.forward(&image.view());
         if i % opt.show_every == 0 {
             save_image(opt.output_dir.join(format!("epoch{:04}.png", i)), &output)?;
@@ -98,5 +118,6 @@ fn main() -> ImageResult<()> {
         train_filter.propogate(&image.view(), &internal, &output_delta);
         learn_rate *= opt.learning_rate_multiplier;
     }
+
     Ok(())
 }
