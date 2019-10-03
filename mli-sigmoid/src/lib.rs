@@ -25,7 +25,7 @@ impl Forward for Logistic {
 impl Backward for Logistic {
     type OutputDelta = f32;
     type InputDelta = f32;
-    type TrainDelta = ();
+    type TrainDelta = f32;
 
     fn backward(
         &self,
@@ -33,7 +33,7 @@ impl Backward for Logistic {
         _: &(),
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        (logistic_derivative(input) * output_delta, ())
+        (logistic_derivative(input) * output_delta, 0.0)
     }
 }
 

@@ -2,10 +2,12 @@ use image::ImageResult;
 use mli::{Backward, Forward, Graph, Train};
 use mli_conv::{Conv2, Conv2n, Conv3};
 use mli_defconv::DefConv2InternalOffsets;
-use mli_ndarray::{Map2One, Map3One, Reshape3to2};
+use mli_dense::Dense2;
+use mli_ndarray::{Map1One, Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
+use mli_sigmoid::Logistic;
 use mnist::{Mnist, MnistBuilder};
-use ndarray::{array, s, Array, Array2, Array3, ArrayView, ArrayView3, OwnedRepr};
+use ndarray::{array, Array, Array2, Array3, ArrayView, ArrayView3, OwnedRepr};
 use ndarray_image::{open_gray_image, save_gray_image, save_image, Colors};
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
@@ -91,6 +93,11 @@ fn main() -> ImageResult<()> {
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
 
+    let num_outputs = 10;
+    let dense_line = 28 - 2 * conv_layers * filter_radius;
+    let dense_area = dense_line * dense_line;
+    let dense_volume = dense_area * num_outputs;
+
     let defconv_total_strides = 28;
 
     let padding = (conv_layers * filter_radius - 1) as i32;
@@ -167,6 +174,20 @@ fn main() -> ImageResult<()> {
         let distr = Normal::new(mean, variance).unwrap();
         Blu::new(distr.sample(&mut prng_blu), distr.sample(&mut prng_blu))
     };
+    let mut prng_dense2 = make_prng(prng.next_u32());
+    let mut random_dense2 = |mean: f32, variance: f32| -> Dense2<OwnedRepr<f32>> {
+        // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
+        Dense2::new(
+            Array::from_iter(
+                Normal::new(mean / filter_area as f32, variance / filter_area as f32)
+                    .unwrap()
+                    .sample_iter(&mut prng_dense2)
+                    .take(dense_volume),
+            )
+            .into_shape((num_outputs, dense_line, dense_line))
+            .unwrap(),
+        )
+    };
     let mut generate_filter = || {
         random_defconv(10, 1.0, 0.5)
             .map(random_2nfilter(0.0, 4.0))
@@ -177,6 +198,9 @@ fn main() -> ImageResult<()> {
             .map(random_2filter(0.0, 4.0))
             .map(Map2One(random_blu(0.0, 0.5)))
             .map(random_2filter(0.0, 4.0))
+            .map(Map2One(random_blu(0.0, 0.5)))
+            .map(random_dense2(0.0, 4.0))
+            .map(Map1One(Logistic))
     };
 
     //////////////
@@ -189,7 +213,8 @@ fn main() -> ImageResult<()> {
         // Weird hack to initialize the momentum to zero without knowing the shape of the ndarray in advance.
         let dummy_image = train.outer_iter().nth(0).unwrap().to_owned();
         let mut momentum = {
-            let (internal, output) = train_filter.forward(&dummy_image);
+            let (internal, mut output) = train_filter.forward(&dummy_image);
+            output *= 0.0;
             train_filter.backward_train(&dummy_image, &internal, &output)
         };
         let mut last_loss = 0.0;
@@ -210,7 +235,7 @@ fn main() -> ImageResult<()> {
                 if sample_ix % opt.show_every == 0 {
                     // Plot the sample locations from the deformable conv net in the center.
                     let mut splat: Array3<f32> = Array::zeros([1024, 1024, 3]);
-                    let defconv = &(((((((train_filter.0).0).0).0).0).0).0).0;
+                    let defconv = &((((((((((train_filter.0).0).0).0).0).0).0).0).0).0).0;
                     // Get the weight distance so we can normalize the weights.
                     let weight_distance = defconv
                         .def_conv
@@ -241,12 +266,6 @@ fn main() -> ImageResult<()> {
                                 1.0 - weight / weight_distance;
                         }
                     }
-                    // Draw the output for the epoch.
-                    save_image_internal(
-                        opt.output_dir
-                            .join(format!("epoch{:03}_sample{:06}.png", i, sample_ix)),
-                        &output,
-                    )?;
                     // Draw the splat for the epoch.
                     save_image_color_internal(
                         opt.output_dir
@@ -268,18 +287,9 @@ fn main() -> ImageResult<()> {
                 };
                 // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
                 let mut delta_loss = output.clone();
-                let start = delta_loss.len() / 2;
                 for (ix, v) in delta_loss.iter_mut().enumerate() {
-                    if ix >= start && ix < start + 10 {
-                        let expected = if (ix - start) == label as usize {
-                            1.0
-                        } else {
-                            0.0
-                        };
-                        *v = 2.0 * (*v - expected);
-                    } else {
-                        *v = 0.0;
-                    }
+                    let expected = if ix == label as usize { 1.0 } else { 0.0 };
+                    *v = 2.0 * (*v - expected);
                 }
                 let loss = delta_loss.iter().map(|&n| (n / 2.0).powi(2)).sum();
                 eprintln!(

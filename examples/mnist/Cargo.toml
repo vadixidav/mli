@@ -10,6 +10,8 @@ mli-conv = { path = "../../mli-conv", version = "0.1.0" }
 mli-ndarray = { path = "../../mli-ndarray", version = "0.1.0" }
 mli-relu = { path = "../../mli-relu", version = "0.1.0" }
 mli-defconv = { path = "../../mli-defconv", version = "0.1.0" }
+mli-dense = { path = "../../mli-dense", version = "0.1.0" }
+mli-sigmoid = { path = "../../mli-sigmoid", version = "0.1.0" }
 structopt = "0.2.18"
 image = "0.22.1"
 ndarray = "0.12.1"
