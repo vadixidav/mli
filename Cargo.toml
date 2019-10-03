@@ -8,4 +8,5 @@ members = [
     "mli-sigmoid",
     "examples/sobel",
     "examples/deep-train",
+    "examples/mnist",
 ]
