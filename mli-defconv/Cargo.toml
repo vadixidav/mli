@@ -1,5 +1,5 @@
 [package]
-name = "mli-conv"
+name = "mli-defconv"
 version = "0.1.0"
 authors = ["Geordon Worley <vadixidav@gmail.com>"]
 edition = "2018"
@@ -11,3 +11,5 @@ ndarray = "0.12.1"
 numeric-array = "0.4.1"
 generic-array = "0.13.2"
 typenum = "1.11.2"
+arraymap = "0.1.1"
+itertools = "0.8.0"

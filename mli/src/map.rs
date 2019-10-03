@@ -1,9 +1,9 @@
 use crate::{Backward, ChainData, Forward, Train};
 
 #[derive(Clone, Debug)]
-pub struct Chain<T, U>(pub T, pub U);
+pub struct Map<T, U>(pub T, pub U);
 
-impl<T, U> Forward for Chain<T, U>
+impl<T, U> Forward for Map<T, U>
 where
     T: Forward,
     U: Forward<Input = T::Output>,
@@ -19,7 +19,7 @@ where
     }
 }
 
-impl<T, U, O> Backward for Chain<T, U>
+impl<T, U, O> Backward for Map<T, U>
 where
     T: Backward<OutputDelta = U::InputDelta> + Forward<Output = O>,
     U: Backward + Forward<Input = O>,
@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<T, U, O> Train for Chain<T, U>
+impl<T, U, O> Train for Map<T, U>
 where
     T: Train + Backward<OutputDelta = U::InputDelta> + Forward<Output = O>,
     U: Train + Backward + Forward<Input = O>,

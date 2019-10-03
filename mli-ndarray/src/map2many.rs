@@ -1,6 +1,7 @@
+use crate::Ndeep;
 use itertools::izip;
 use mli::{Backward, Forward, Train};
-use ndarray::{azip, Array, Array2};
+use ndarray::{azip, Array, Array2, Ix2, OwnedRepr};
 
 #[derive(Clone, Debug)]
 pub struct Map2Many<G>(pub Array2<G>);
@@ -40,7 +41,7 @@ where
 {
     type OutputDelta = Array2<G::OutputDelta>;
     type InputDelta = Array2<G::InputDelta>;
-    type TrainDelta = Array2<G::TrainDelta>;
+    type TrainDelta = Ndeep<OwnedRepr<G::TrainDelta>, Ix2>;
 
     fn backward(
         &self,
@@ -67,7 +68,7 @@ where
         );
         let input_delta_array = Array::from_shape_vec(input.raw_dim(), input_delta_vec).unwrap();
         let train_delta_array = Array::from_shape_vec(input.raw_dim(), train_delta_vec).unwrap();
-        (input_delta_array, train_delta_array)
+        (input_delta_array, Ndeep(train_delta_array))
     }
 }
 
@@ -77,7 +78,7 @@ where
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
         let mut ops = self.0.view_mut();
-        let train_delta = train_delta.view();
+        let train_delta = train_delta.0.view();
         azip!(mut ops, ref train_delta in {
             ops.train(train_delta);
         });

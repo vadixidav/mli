@@ -1,19 +1,19 @@
 use itertools::izip;
 use mli::{Backward, Forward, Train};
-use ndarray::{Array, Array2};
+use ndarray::{Array, Array3};
 use num_traits::Zero;
 use std::ops::Add;
 
 #[derive(Clone, Debug)]
-pub struct Map2One<G>(pub G);
+pub struct Map3One<G>(pub G);
 
-impl<G> Forward for Map2One<G>
+impl<G> Forward for Map3One<G>
 where
     G: Forward,
 {
-    type Input = Array2<G::Input>;
-    type Internal = Array2<G::Internal>;
-    type Output = Array2<G::Output>;
+    type Input = Array3<G::Input>;
+    type Internal = Array3<G::Internal>;
+    type Output = Array3<G::Output>;
 
     fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
         let both_vec: Vec<(G::Internal, G::Output)> =
@@ -32,13 +32,13 @@ where
     }
 }
 
-impl<G> Backward for Map2One<G>
+impl<G> Backward for Map3One<G>
 where
     G: Backward,
     G::TrainDelta: Clone + Add + Zero,
 {
-    type OutputDelta = Array2<G::OutputDelta>;
-    type InputDelta = Array2<G::InputDelta>;
+    type OutputDelta = Array3<G::OutputDelta>;
+    type InputDelta = Array3<G::InputDelta>;
     type TrainDelta = G::TrainDelta;
 
     fn backward(
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl<G> Train for Map2One<G>
+impl<G> Train for Map3One<G>
 where
     G: Train,
     G::TrainDelta: Clone + Add + Zero,

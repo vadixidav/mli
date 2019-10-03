@@ -1,25 +1,10 @@
+use crate::convolve2;
 use mli::*;
-use ndarray::{s, Array, Array2, ArrayBase, ArrayView2, Data};
+use mli_ndarray::Ndeep;
+use ndarray::{s, Array, Array2, ArrayBase, Data, OwnedRepr};
 use std::marker::PhantomData;
 
 type D = ndarray::Ix2;
-
-fn convolve<'a>(signal: ArrayView2<'a, f32>, filter: ArrayView2<'a, f32>) -> Array2<f32> {
-    let filter_dims = filter.raw_dim();
-    let output_dims = (
-        signal.shape()[0] + 1 - filter_dims[0],
-        signal.shape()[1] + 1 - filter_dims[1],
-    );
-    Array::from_shape_vec(
-        output_dims,
-        signal
-            .windows(filter_dims)
-            .into_iter()
-            .map(|view| (view.to_owned() * filter).sum())
-            .collect(),
-    )
-    .expect("convolution produced incorrectly sized output")
-}
 
 #[derive(Clone, Debug)]
 pub struct Conv2<S>(Array2<f32>, PhantomData<S>);
@@ -40,7 +25,7 @@ where
 
     fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
         let Self(filter, _) = self;
-        ((), convolve(input.view(), filter.view()))
+        ((), convolve2(input.view(), filter.view()))
     }
 }
 
@@ -50,7 +35,7 @@ where
 {
     type OutputDelta = Array2<f32>;
     type InputDelta = Array2<f32>;
-    type TrainDelta = Array2<f32>;
+    type TrainDelta = Ndeep<OwnedRepr<f32>, D>;
 
     fn backward(
         &self,
@@ -80,7 +65,7 @@ where
         ])
         .assign(output_delta);
         #[allow(clippy::deref_addrof)]
-        let input_delta = convolve(pad.view(), filter.slice(s![..;-1,..;-1]));
+        let input_delta = convolve2(pad.view(), filter.slice(s![..;-1,..;-1]));
 
         let train_delta = input
             .windows(filter_dims)
@@ -88,7 +73,7 @@ where
             .zip(output_delta.iter())
             .map(|(view, &delta)| (view.to_owned() * delta))
             .fold(Array2::zeros(filter_dims), |acc, item| acc + item);
-        (input_delta, train_delta)
+        (input_delta, Ndeep(train_delta))
     }
 }
 
@@ -97,6 +82,6 @@ where
     S: Data<Elem = f32>,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        self.0 += train_delta;
+        self.0 += &train_delta.0;
     }
 }
