@@ -22,13 +22,13 @@ struct Opt {
     #[structopt(short = "t", default_value = "4000")]
     epochs: usize,
     /// Number of epochs per output image
-    #[structopt(short = "s", default_value = "1")]
+    #[structopt(short = "s", default_value = "1000")]
     show_every: usize,
     /// Pre-start learning rate (for first 10 epochs)
-    #[structopt(short = "p", default_value = "0.1")]
+    #[structopt(short = "p", default_value = "0.0000001")]
     prestart_learning_rate: f32,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.3")]
+    #[structopt(short = "i", default_value = "0.0000003")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
     #[structopt(short = "m", default_value = "0.999")]
@@ -37,7 +37,7 @@ struct Opt {
     #[structopt(short = "z", default_value = "34")]
     seed: u32,
     /// Beta value for NAG
-    #[structopt(short = "b", default_value = "0.9")]
+    #[structopt(short = "b", default_value = "0.999")]
     beta: f32,
     /// Directory containing the MNIST files
     #[structopt(parse(from_os_str))]
@@ -87,9 +87,9 @@ fn main() -> ImageResult<()> {
     // Defining the model //
     ////////////////////////
 
-    let conv_layers = 4;
+    let conv_layers = 2;
     let filter_radius = 1usize;
-    let filter_depth = 2usize;
+    let filter_depth = 4usize;
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
 
@@ -195,10 +195,6 @@ fn main() -> ImageResult<()> {
             .map(random_3filter(0.0, 4.0))
             .map(Reshape3to2::new())
             .map(Map2One(random_blu(0.0, 0.5)))
-            .map(random_2filter(0.0, 4.0))
-            .map(Map2One(random_blu(0.0, 0.5)))
-            .map(random_2filter(0.0, 4.0))
-            .map(Map2One(random_blu(0.0, 0.5)))
             .map(random_dense2(0.0, 4.0))
             .map(Map1One(Logistic))
     };
@@ -218,6 +214,7 @@ fn main() -> ImageResult<()> {
             train_filter.backward_train(&dummy_image, &internal, &output)
         };
         let mut last_loss = 0.0;
+        let mut exponentially_decaying_loss_average = 0.0;
         momentum *= 0.0f32;
         for i in 0..opt.epochs {
             // Iterate through every image in the epoch.
@@ -235,7 +232,7 @@ fn main() -> ImageResult<()> {
                 if sample_ix % opt.show_every == 0 {
                     // Plot the sample locations from the deformable conv net in the center.
                     let mut splat: Array3<f32> = Array::zeros([1024, 1024, 3]);
-                    let defconv = &((((((((((train_filter.0).0).0).0).0).0).0).0).0).0).0;
+                    let defconv = &((((((train_filter.0).0).0).0).0).0).0;
                     // Get the weight distance so we can normalize the weights.
                     let weight_distance = defconv
                         .def_conv
@@ -291,22 +288,27 @@ fn main() -> ImageResult<()> {
                     let expected = if ix == label as usize { 1.0 } else { 0.0 };
                     *v = 2.0 * (*v - expected);
                 }
-                let loss = delta_loss.iter().map(|&n| (n / 2.0).powi(2)).sum();
-                eprintln!(
-                    "epoch {:03} sample {:06} loss(ish): {} ({:+}%), learn_rate: {}",
-                    i,
-                    sample_ix,
-                    loss,
-                    (loss - last_loss) / last_loss * 100.0,
-                    local_learn_rate
-                );
-                last_loss = loss;
+                let loss: f32 = delta_loss.iter().map(|&n| (n / 2.0).powi(2)).sum();
+                exponentially_decaying_loss_average *= 0.999;
+                exponentially_decaying_loss_average += loss * 0.001;
+                if sample_ix % opt.show_every == 0 {
+                    eprintln!(
+                        "epoch {:03} sample {:06} loss: {} ({:+}%), learn_rate: {}",
+                        i,
+                        sample_ix,
+                        exponentially_decaying_loss_average,
+                        (exponentially_decaying_loss_average - last_loss) / last_loss * 100.0,
+                        local_learn_rate
+                    );
+                    last_loss = exponentially_decaying_loss_average;
+                }
                 if !loss.is_normal() {
                     eprintln!("abnormal loss at epoch {}; starting over", i);
                     break;
                 }
                 // Compute the output delta.
-                let output_delta = -local_learn_rate * delta_loss / output_len;
+                let mut output_delta = delta_loss;
+                output_delta *= -local_learn_rate / output_len;
                 // Compute the trainable variable delta.
                 let mut train_delta = train_filter.backward_train(&image, &internal, &output_delta);
                 // Make the train delta a small component.
