@@ -1,12 +1,12 @@
 use mli::*;
 
 fn logistic(n: f32) -> f32 {
-    (1.0 + (-n).exp()).recip() - 0.5
+    (1.0 + (-n).exp()).recip()
 }
 
 fn logistic_derivative(n: f32) -> f32 {
-    let sig = logistic(n);
-    sig * (1.0 - sig)
+    let en = n.exp();
+    en * (1.0 + en).powi(-2)
 }
 
 #[derive(Copy, Clone, Debug)]

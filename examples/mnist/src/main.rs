@@ -24,20 +24,23 @@ struct Opt {
     /// Number of epochs per output image
     #[structopt(short = "s", default_value = "1000")]
     show_every: usize,
-    /// Pre-start learning rate (for first 10 epochs)
-    #[structopt(short = "p", default_value = "0.0000001")]
+    /// Pre-start learning rate
+    #[structopt(short = "p", default_value = "0.1")]
     prestart_learning_rate: f32,
+    /// Pre-start learning samples
+    #[structopt(short = "l", default_value = "20000")]
+    prestart_learning_samples: usize,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.0000003")]
+    #[structopt(short = "i", default_value = "0.1")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
-    #[structopt(short = "m", default_value = "0.999")]
+    #[structopt(short = "m", default_value = "0.99999")]
     learning_rate_multiplier: f32,
     /// Seed
     #[structopt(short = "z", default_value = "34")]
     seed: u32,
     /// Beta value for NAG
-    #[structopt(short = "b", default_value = "0.999")]
+    #[structopt(short = "b", default_value = "0.99")]
     beta: f32,
     /// Directory containing the MNIST files
     #[structopt(parse(from_os_str))]
@@ -70,13 +73,12 @@ fn save_image_color_internal(path: impl AsRef<Path>, image: &Array3<f32>) -> Ima
     save_image(path, image.view(), Colors::Rgb)
 }
 
-fn mnist_train<'a>(mnist: &'a Mnist) -> ArrayView3<'a, u8> {
+fn mnist_train(mnist: &Mnist) -> ArrayView3<'_, u8> {
     ArrayView::from_shape((60000, 28, 28), mnist.trn_img.as_slice()).expect("mnist data corrupted")
 }
 
 fn main() -> ImageResult<()> {
     let opt = Opt::from_args();
-    let mut prng = Pcg64::from_seed([0; 32]);
     let mnist = MnistBuilder::new()
         .base_path(&opt.mnist_dir.display().to_string())
         .label_format_digit()
@@ -89,7 +91,7 @@ fn main() -> ImageResult<()> {
 
     let conv_layers = 2;
     let filter_radius = 1usize;
-    let filter_depth = 4usize;
+    let filter_depth = 2usize;
     let filter_area = (filter_radius * 2 + 1).pow(2);
     let filter_volume = filter_area * filter_depth;
 
@@ -100,7 +102,6 @@ fn main() -> ImageResult<()> {
 
     let defconv_total_strides = 28;
 
-    let padding = (conv_layers * filter_radius - 1) as i32;
     let mut prng = make_prng(opt.seed);
     let mut prng_defconv = make_prng(prng.next_u32());
     let mut random_defconv =
@@ -215,6 +216,8 @@ fn main() -> ImageResult<()> {
         };
         let mut last_loss = 0.0;
         let mut exponentially_decaying_loss_average = 0.0;
+        let mut exponentially_decaying_accuracy_average = 0.0;
+        let mut prestart = true;
         momentum *= 0.0f32;
         for i in 0..opt.epochs {
             // Iterate through every image in the epoch.
@@ -275,7 +278,10 @@ fn main() -> ImageResult<()> {
                     return Ok(());
                 }
                 let output_len = output.len() as f32;
-                let local_learn_rate = if i < 10 {
+                let local_learn_rate = if prestart {
+                    if sample_ix > opt.prestart_learning_samples {
+                        prestart = false;
+                    }
                     opt.prestart_learning_rate
                 } else {
                     let llr = learn_rate;
@@ -283,21 +289,38 @@ fn main() -> ImageResult<()> {
                     llr
                 };
                 // Compute the loss for display only (we don't actually need the loss itself for backprop, just its derivative).
-                let mut delta_loss = output.clone();
-                for (ix, v) in delta_loss.iter_mut().enumerate() {
-                    let expected = if ix == label as usize { 1.0 } else { 0.0 };
-                    *v = 2.0 * (*v - expected);
-                }
-                let loss: f32 = delta_loss.iter().map(|&n| (n / 2.0).powi(2)).sum();
+                let onehot = Array::from_iter((0..10).map(|n| if n == label { 1.0 } else { 0.0 }));
+                let delta_loss = 2.0 * (output.clone() - &onehot);
+                let loss = output
+                    .iter()
+                    .enumerate()
+                    .map(|(ix, &n)| {
+                        let expected = if ix == label as usize { 1.0 } else { 0.0 };
+                        (n - expected).powi(2)
+                    })
+                    .sum::<f32>()
+                    / output_len;
                 exponentially_decaying_loss_average *= 0.999;
                 exponentially_decaying_loss_average += loss * 0.001;
+                exponentially_decaying_accuracy_average *= 0.999;
+                let correct = output
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, &n)| float_ord::FloatOrd(n))
+                    .unwrap()
+                    .0
+                    == label as usize;
+                if correct {
+                    exponentially_decaying_accuracy_average += 0.001;
+                }
                 if sample_ix % opt.show_every == 0 {
                     eprintln!(
-                        "epoch {:03} sample {:06} loss: {} ({:+}%), learn_rate: {}",
+                        "epoch {:03} sample {:06} loss: {} ({:+}%), accuracy: {}, learn_rate: {}",
                         i,
                         sample_ix,
                         exponentially_decaying_loss_average,
                         (exponentially_decaying_loss_average - last_loss) / last_loss * 100.0,
+                        exponentially_decaying_accuracy_average,
                         local_learn_rate
                     );
                     last_loss = exponentially_decaying_loss_average;
