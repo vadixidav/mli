@@ -75,9 +75,9 @@ where
     G: Train,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        let mut ops = self.0.view_mut();
+        let ops = self.0.view_mut();
         let train_delta = train_delta.0.view();
-        azip!(mut ops, ref train_delta in {
+        azip!((ops in ops, train_delta in train_delta) {
             ops.train(train_delta);
         });
     }

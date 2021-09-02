@@ -1,4 +1,4 @@
-use ndarray::{ArrayBase, Data, DataClone, DataMut, Dimension};
+use ndarray::{ArrayBase, Data, DataMut, Dimension, RawData, RawDataClone};
 use std::fmt::{self, Debug};
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 
@@ -9,7 +9,7 @@ pub struct Ndeep<S: Data, D>(pub ArrayBase<S, D>);
 
 impl<S, D: Dimension + Clone> Clone for Ndeep<S, D>
 where
-    S: DataClone,
+    S: Data + RawDataClone,
 {
     fn clone(&self) -> Self {
         Self(self.0.clone())
@@ -19,7 +19,7 @@ where
 impl<S, D: Dimension + Clone> Debug for Ndeep<S, D>
 where
     S: Data,
-    <S as Data>::Elem: Debug,
+    <S as RawData>::Elem: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)

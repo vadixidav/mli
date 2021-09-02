@@ -1,4 +1,4 @@
-use image::ImageResult;
+use image::{ImageResult, RgbImage};
 use mli::{Backward, Forward, Graph, Train};
 use mli_conv::{Conv2n, Conv3};
 use mli_defconv::DefConv2InternalOffsets;
@@ -8,7 +8,6 @@ use mli_relu::Blu;
 use mli_sigmoid::Logistic;
 use mnist::{Mnist, MnistBuilder};
 use ndarray::{Array, Array3, ArrayView, ArrayView3, OwnedRepr};
-use ndarray_image::{save_image, Colors};
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
@@ -70,7 +69,14 @@ struct Opt {
 
 fn save_image_color_internal(path: impl AsRef<Path>, image: &Array3<f32>) -> ImageResult<()> {
     let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
-    save_image(path, image.view(), Colors::Rgb)
+    if let [height, width, 3] = *image.shape() {
+        let slice = image.as_slice().unwrap();
+        let image = RgbImage::from_raw(width as u32, height as u32, slice.to_vec())
+            .expect("failed to create image from raw vec");
+        image.save(path)
+    } else {
+        panic!("bad format image");
+    }
 }
 
 fn mnist_train(mnist: &Mnist) -> ArrayView3<'_, u8> {

@@ -12,13 +12,12 @@ mli-relu = { path = "../../mli-relu", version = "0.1.0" }
 mli-defconv = { path = "../../mli-defconv", version = "0.1.0" }
 mli-dense = { path = "../../mli-dense", version = "0.1.0" }
 mli-sigmoid = { path = "../../mli-sigmoid", version = "0.1.0" }
-structopt = "0.2.18"
-image = "0.22.1"
-ndarray = "0.12.1"
-num = "0.2.0"
-ndarray-image = "0.1.1"
-rand_distr = "0.2.1"
-rand_pcg = "0.2.0"
-rand_core = "0.5.0"
-mnist = "0.4.0"
-float-ord = "0.2.0"
+structopt = "0.3.23"
+image = "0.23.14"
+ndarray = "0.15.3"
+num = "0.4.0"
+rand_distr = "0.4.1"
+rand_pcg = "0.3.1"
+rand_core = "0.6.3"
+mnist = "0.4.1"
+float-ord = "0.3.2"

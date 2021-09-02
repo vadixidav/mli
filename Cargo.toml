@@ -8,7 +8,5 @@ members = [
     "mli-sigmoid",
     "mli-defconv",
     "mli-dense",
-    "examples/sobel",
-    "examples/deep-train",
     "examples/mnist",
 ]
