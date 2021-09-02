@@ -10,7 +10,7 @@ use mnist::{Mnist, MnistBuilder};
 use ndarray::{Array, Array3, ArrayView, ArrayView3, OwnedRepr};
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
-use rand_pcg::Pcg64;
+use rand_xoshiro::Xoshiro256PlusPlus;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -36,11 +36,14 @@ struct Opt {
     #[structopt(short = "m", default_value = "0.99999")]
     learning_rate_multiplier: f32,
     /// Seed
-    #[structopt(short = "z", default_value = "34")]
-    seed: u32,
-    /// Beta value for NAG
+    #[structopt(short = "z", default_value = "0")]
+    seed: u64,
+    /// Beta value for AdaMax NAG Momentum
     #[structopt(short = "b", default_value = "0.99")]
-    beta: f32,
+    betam: f32,
+    /// Beta value for AdaMax NAG Variance
+    #[structopt(short = "v", default_value = "0.999")]
+    betav: f32,
     /// Directory containing the MNIST files
     #[structopt(parse(from_os_str))]
     mnist_dir: PathBuf,
@@ -109,7 +112,7 @@ fn main() -> ImageResult<()> {
     let defconv_total_strides = 28;
 
     let mut prng = make_prng(opt.seed);
-    let mut prng_defconv = make_prng(prng.next_u32());
+    let mut prng_defconv = make_prng(prng.next_u64());
     let mut random_defconv =
         |samples: usize, mean: f32, variance: f32| -> DefConv2InternalOffsets {
             // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
@@ -147,7 +150,7 @@ fn main() -> ImageResult<()> {
     //         .unwrap(),
     //     )
     // };
-    let mut prng_2nfilter = make_prng(prng.next_u32());
+    let mut prng_2nfilter = make_prng(prng.next_u64());
     let mut random_2nfilter = |mean: f32, variance: f32| -> Conv2n<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
         Conv2n::new(
@@ -161,7 +164,7 @@ fn main() -> ImageResult<()> {
             .unwrap(),
         )
     };
-    let mut prng_3filter = make_prng(prng.next_u32());
+    let mut prng_3filter = make_prng(prng.next_u64());
     let mut random_3filter = |mean: f32, variance: f32| -> Conv3<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the volume of the filter.
         Conv3::new(
@@ -175,13 +178,13 @@ fn main() -> ImageResult<()> {
             .unwrap(),
         )
     };
-    let mut prng_blu = make_prng(prng.next_u32());
+    let mut prng_blu = make_prng(prng.next_u64());
     let mut random_blu = |mean: f32, variance: f32| -> Blu {
         // Xavier initialize by changing the variance to be 1/N where N is the number of neurons.
         let distr = Normal::new(mean, variance).unwrap();
         Blu::new(distr.sample(&mut prng_blu), distr.sample(&mut prng_blu))
     };
-    let mut prng_dense2 = make_prng(prng.next_u32());
+    let mut prng_dense2 = make_prng(prng.next_u64());
     let mut random_dense2 = |mean: f32, variance: f32| -> Dense2<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
         Dense2::new(
@@ -234,7 +237,7 @@ fn main() -> ImageResult<()> {
                 .enumerate()
             {
                 // Compute beta * momentum.
-                momentum *= opt.beta;
+                momentum *= opt.betam;
                 train_filter.train(&momentum);
                 let (internal, output) = train_filter.forward(&image);
                 // Show the image if the frame is divisible by show_every.
@@ -341,7 +344,7 @@ fn main() -> ImageResult<()> {
                 // Compute the trainable variable delta.
                 let mut train_delta = train_filter.backward_train(&image, &internal, &output_delta);
                 // Make the train delta a small component.
-                train_delta *= 1.0 - opt.beta;
+                train_delta *= 1.0 - opt.betam;
                 train_filter.train(&train_delta);
                 // Add the small component to the momentum.
                 momentum += train_delta;
@@ -350,39 +353,6 @@ fn main() -> ImageResult<()> {
     }
 }
 
-fn make_prng(seed: u32) -> Pcg64 {
-    Pcg64::from_seed([
-        (seed & 0xFF) as u8,
-        ((seed >> 8) & 0xFF) as u8,
-        ((seed >> 16) & 0xFF) as u8,
-        ((seed >> 24) & 0xFF) as u8,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    ])
+fn make_prng(seed: u64) -> Xoshiro256PlusPlus {
+    Xoshiro256PlusPlus::seed_from_u64(seed)
 }
