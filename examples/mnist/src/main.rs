@@ -1,14 +1,14 @@
 use image::ImageResult;
 use mli::{Backward, Forward, Graph, Train};
-use mli_conv::{Conv2, Conv2n, Conv3};
+use mli_conv::{Conv2n, Conv3};
 use mli_defconv::DefConv2InternalOffsets;
 use mli_dense::Dense2;
 use mli_ndarray::{Map1One, Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
 use mli_sigmoid::Logistic;
 use mnist::{Mnist, MnistBuilder};
-use ndarray::{array, Array, Array2, Array3, ArrayView, ArrayView3, OwnedRepr};
-use ndarray_image::{open_gray_image, save_gray_image, save_image, Colors};
+use ndarray::{Array, Array3, ArrayView, ArrayView3, OwnedRepr};
+use ndarray_image::{save_image, Colors};
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
@@ -50,23 +50,23 @@ struct Opt {
     output_dir: PathBuf,
 }
 
-fn sobel(image: &Array2<f32>) -> Array2<f32> {
-    let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
-    let right_filter = down_filter.t().to_owned();
-    let down = Conv2::new(down_filter).forward(&image).1;
-    let right = Conv2::new(right_filter).forward(&image).1;
-    (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt())
-}
+// fn sobel(image: &Array2<f32>) -> Array2<f32> {
+//     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
+//     let right_filter = down_filter.t().to_owned();
+//     let down = Conv2::new(down_filter).forward(&image).1;
+//     let right = Conv2::new(right_filter).forward(&image).1;
+//     (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt())
+// }
 
-fn open_image(path: impl AsRef<Path>) -> ImageResult<Array2<f32>> {
-    let image = open_gray_image(path)?;
-    Ok(image.map(|&n| f32::from(n) / 255.0))
-}
+// fn open_image(path: impl AsRef<Path>) -> ImageResult<Array2<f32>> {
+//     let image = open_gray_image(path)?;
+//     Ok(image.map(|&n| f32::from(n) / 255.0))
+// }
 
-fn save_image_internal(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
-    let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
-    save_gray_image(path, image.view())
-}
+// fn save_image_internal(path: impl AsRef<Path>, image: &Array2<f32>) -> ImageResult<()> {
+//     let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
+//     save_gray_image(path, image.view())
+// }
 
 fn save_image_color_internal(path: impl AsRef<Path>, image: &Array3<f32>) -> ImageResult<()> {
     let image = image.map(|&n| num::clamp(n * 255.0, 0.0, 255.0) as u8);
@@ -127,20 +127,20 @@ fn main() -> ImageResult<()> {
                 [defconv_total_strides, defconv_total_strides],
             )
         };
-    let mut prng_2filter = make_prng(prng.next_u32());
-    let mut random_2filter = |mean: f32, variance: f32| -> Conv2<OwnedRepr<f32>> {
-        // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
-        Conv2::new(
-            Array::from_iter(
-                Normal::new(mean / filter_area as f32, variance / filter_area as f32)
-                    .unwrap()
-                    .sample_iter(&mut prng_2filter)
-                    .take(filter_area),
-            )
-            .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
-            .unwrap(),
-        )
-    };
+    // let mut prng_2filter = make_prng(prng.next_u32());
+    // let mut random_2filter = |mean: f32, variance: f32| -> Conv2<OwnedRepr<f32>> {
+    //     // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
+    //     Conv2::new(
+    //         Array::from_iter(
+    //             Normal::new(mean / filter_area as f32, variance / filter_area as f32)
+    //                 .unwrap()
+    //                 .sample_iter(&mut prng_2filter)
+    //                 .take(filter_area),
+    //         )
+    //         .into_shape((filter_radius * 2 + 1, filter_radius * 2 + 1))
+    //         .unwrap(),
+    //     )
+    // };
     let mut prng_2nfilter = make_prng(prng.next_u32());
     let mut random_2nfilter = |mean: f32, variance: f32| -> Conv2n<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
@@ -208,7 +208,7 @@ fn main() -> ImageResult<()> {
         let mut train_filter = generate_filter();
         let mut learn_rate = opt.initial_learning_rate;
         // Weird hack to initialize the momentum to zero without knowing the shape of the ndarray in advance.
-        let dummy_image = train.outer_iter().nth(0).unwrap().to_owned();
+        let dummy_image = train.outer_iter().next().unwrap().to_owned();
         let mut momentum = {
             let (internal, mut output) = train_filter.forward(&dummy_image);
             output *= 0.0;

@@ -16,12 +16,11 @@ where
 
     fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
         assert_eq!(input.shape(), self.0.shape());
-        let both_vec: Vec<(G::Internal, G::Output)> = input
+        let both = input
             .iter()
             .zip(self.0.iter())
-            .map(|(input, op)| op.forward(input))
-            .collect();
-        let (internal_vec, output_vec) = both_vec.into_iter().fold(
+            .map(|(input, op)| op.forward(input));
+        let (internal_vec, output_vec) = both.fold(
             (vec![], vec![]),
             |(mut internal_vec, mut output_vec), (internal, output)| {
                 internal_vec.push(internal);
@@ -50,15 +49,14 @@ where
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         assert_eq!(input.shape(), self.0.shape());
-        let both_vec: Vec<(G::InputDelta, G::TrainDelta)> = izip!(
+        let both = izip!(
             input.iter(),
             internal.iter(),
             output_delta.iter(),
             self.0.iter()
         )
-        .map(|(input, internal, output_delta, op)| op.backward(input, internal, output_delta))
-        .collect();
-        let (input_delta_vec, train_delta_vec) = both_vec.into_iter().fold(
+        .map(|(input, internal, output_delta, op)| op.backward(input, internal, output_delta));
+        let (input_delta_vec, train_delta_vec) = both.fold(
             (vec![], vec![]),
             |(mut input_delta_vec, mut train_delta_vec), (input_delta, train_delta)| {
                 input_delta_vec.push(input_delta);

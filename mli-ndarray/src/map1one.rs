@@ -16,9 +16,8 @@ where
     type Output = Array1<G::Output>;
 
     fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
-        let both_vec: Vec<(G::Internal, G::Output)> =
-            input.iter().map(|input| self.0.forward(input)).collect();
-        let (internal_vec, output_vec) = both_vec.into_iter().fold(
+        let both = input.iter().map(|input| self.0.forward(input));
+        let (internal_vec, output_vec) = both.fold(
             (vec![], vec![]),
             |(mut internal_vec, mut output_vec), (internal, output)| {
                 internal_vec.push(internal);
@@ -47,13 +46,9 @@ where
         internal: &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        let both_vec: Vec<(G::InputDelta, G::TrainDelta)> =
-            izip!(input.iter(), internal.iter(), output_delta.iter(),)
-                .map(|(input, internal, output_delta)| {
-                    self.0.backward(input, internal, output_delta)
-                })
-                .collect();
-        let (input_delta_vec, train_delta_vec) = both_vec.into_iter().fold(
+        let both = izip!(input.iter(), internal.iter(), output_delta.iter(),)
+            .map(|(input, internal, output_delta)| self.0.backward(input, internal, output_delta));
+        let (input_delta_vec, train_delta_vec) = both.fold(
             (vec![], vec![]),
             |(mut input_delta_vec, mut train_delta_vec), (input_delta, train_delta)| {
                 input_delta_vec.push(input_delta);
@@ -73,6 +68,6 @@ where
     G::TrainDelta: Clone + Add + Zero,
 {
     fn train(&mut self, train_delta: &Self::TrainDelta) {
-        self.0.train(&train_delta);
+        self.0.train(train_delta);
     }
 }

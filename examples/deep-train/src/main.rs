@@ -47,8 +47,8 @@ struct Opt {
 fn sobel(image: &Array2<f32>) -> Array2<f32> {
     let down_filter = array![[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0],];
     let right_filter = down_filter.t().to_owned();
-    let down = Conv2::new(down_filter).forward(&image).1;
-    let right = Conv2::new(right_filter).forward(&image).1;
+    let down = Conv2::new(down_filter).forward(image).1;
+    let right = Conv2::new(right_filter).forward(image).1;
     (down.map(|f| f.powi(2)) + right.map(|f| f.powi(2))).map(|f| f.sqrt())
 }
 

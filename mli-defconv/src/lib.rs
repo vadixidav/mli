@@ -1,4 +1,3 @@
-use arraymap::ArrayMap;
 use itertools::Itertools;
 use mli::*;
 use mli_ndarray::{Ndeep, Variable};
@@ -58,14 +57,11 @@ impl<'a> DefConvData<'a> {
             {
                 None
             } else {
-                Some([y, x].map(|&n| n as usize))
+                Some([y, x].map(|n| n as usize))
             }
         };
 
-        // Create a closure to extract the feature with zero-padding.
-        let extract = |c| in_bounds(c);
-
-        (coords.map(|&c| extract(c)), rc)
+        (coords.map(in_bounds), rc)
     }
 
     /// Extracts the corner features and relative coordinate for a bilinear interpolation.
