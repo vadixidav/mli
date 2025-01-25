@@ -37,7 +37,7 @@ struct DefConvData<'a> {
     offsets: &'a Array2<f32>,
 }
 
-impl<'a> DefConvData<'a> {
+impl DefConvData<'_> {
     fn validate_corners(&self, coordinate: [f32; 2]) -> ([Option<[usize; 2]>; 4], [f32; 2]) {
         // Get the integer versions of four corners.
         let coords = corners(coordinate);

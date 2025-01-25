@@ -40,10 +40,7 @@ struct Opt {
     seed: u64,
     /// Beta value for AdaMax NAG Momentum
     #[structopt(short = "b", default_value = "0.99")]
-    betam: f32,
-    /// Beta value for AdaMax NAG Variance
-    #[structopt(short = "v", default_value = "0.999")]
-    betav: f32,
+    momentum: f32,
     /// Directory containing the MNIST files
     #[structopt(parse(from_os_str))]
     mnist_dir: PathBuf,
@@ -236,8 +233,9 @@ fn main() -> ImageResult<()> {
                 .zip(mnist.trn_lbl.iter())
                 .enumerate()
             {
-                // Compute beta * momentum.
-                momentum *= opt.betam;
+                // Only retain the momentum.
+                momentum *= opt.momentum;
+                // Apply the partial momentum to the weights. We do this after applying momentum to implement NAG.
                 train_filter.train(&momentum);
                 let (internal, output) = train_filter.forward(&image);
                 // Show the image if the frame is divisible by show_every.
@@ -344,8 +342,7 @@ fn main() -> ImageResult<()> {
                 // Compute the trainable variable delta.
                 let mut train_delta = train_filter.backward_train(&image, &internal, &output_delta);
                 // Make the train delta a small component.
-                train_delta *= 1.0 - opt.betam;
-                train_filter.train(&train_delta);
+                train_delta *= 1.0 - opt.momentum;
                 // Add the small component to the momentum.
                 momentum += train_delta;
             }

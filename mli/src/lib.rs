@@ -192,7 +192,7 @@ pub trait Train: Backward {
     }
 }
 
-impl<'a, T> Forward for &'a T
+impl<T> Forward for &T
 where
     T: Forward,
 {
@@ -209,7 +209,7 @@ where
     }
 }
 
-impl<'a, T> Forward for &'a mut T
+impl<T> Forward for &mut T
 where
     T: Forward,
 {
@@ -226,7 +226,7 @@ where
     }
 }
 
-impl<'a, T> Backward for &'a T
+impl<T> Backward for &T
 where
     T: Backward,
 {
@@ -262,7 +262,7 @@ where
     }
 }
 
-impl<'a, T> Backward for &'a mut T
+impl<T> Backward for &mut T
 where
     T: Backward,
 {
@@ -298,7 +298,7 @@ where
     }
 }
 
-impl<'a, T> Train for &'a mut T
+impl<T> Train for &mut T
 where
     T: Train,
 {
