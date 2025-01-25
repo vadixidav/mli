@@ -1,3 +1,4 @@
+use clap::Parser;
 use image::{ImageResult, RgbImage};
 use mli::{Backward, Forward, Graph, Train};
 use mli_conv::{Conv2n, Conv3};
@@ -12,40 +13,38 @@ use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "mnist", about = "An example of using MLI to classify MNIST")]
-struct Opt {
+#[derive(Debug, Parser)]
+#[command(version)]
+/// An example of using MLI to classify MNIST
+struct Args {
     /// Number of epochs
-    #[structopt(short = "t", default_value = "4000")]
+    #[arg(short, default_value = "4000")]
     epochs: usize,
     /// Number of epochs per output image
-    #[structopt(short = "s", default_value = "1000")]
+    #[arg(short, default_value = "1000")]
     show_every: usize,
     /// Pre-start learning rate
-    #[structopt(short = "p", default_value = "0.1")]
+    #[arg(short = 'p', default_value = "0.1")]
     prestart_learning_rate: f32,
     /// Pre-start learning samples
-    #[structopt(short = "l", default_value = "20000")]
+    #[arg(short = 's', default_value = "20000")]
     prestart_learning_samples: usize,
     /// Initial learning rate
-    #[structopt(short = "i", default_value = "0.1")]
+    #[arg(short = 'i', default_value = "0.1")]
     initial_learning_rate: f32,
     /// Learning rate multiplier per epoch
-    #[structopt(short = "m", default_value = "0.99999")]
+    #[arg(short = 'l', default_value = "0.99999")]
     learning_rate_multiplier: f32,
     /// Seed
-    #[structopt(short = "z", default_value = "0")]
+    #[arg(short = 'z', default_value = "0")]
     seed: u64,
     /// Beta value for AdaMax NAG Momentum
-    #[structopt(short = "b", default_value = "0.99")]
+    #[arg(short = 'm', default_value = "0.99")]
     momentum: f32,
     /// Directory containing the MNIST files
-    #[structopt(parse(from_os_str))]
     mnist_dir: PathBuf,
     /// Output directory
-    #[structopt(parse(from_os_str))]
     output_dir: PathBuf,
 }
 
@@ -84,7 +83,7 @@ fn mnist_train(mnist: &Mnist) -> ArrayView3<'_, u8> {
 }
 
 fn main() -> ImageResult<()> {
-    let opt = Opt::from_args();
+    let opt = Args::parse();
     let mnist = MnistBuilder::new()
         .base_path(&opt.mnist_dir.display().to_string())
         .label_format_digit()
