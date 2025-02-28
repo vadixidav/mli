@@ -8,10 +8,10 @@ use mli_ndarray::{Map1One, Map2One, Map3One, Reshape3to2};
 use mli_relu::Blu;
 use mli_sigmoid::Logistic;
 use mnist::{Mnist, MnistBuilder};
-use ndarray::{Array, Array3, ArrayView, ArrayView3, OwnedRepr};
+use ndarray::{Array, Array1, Array3, ArrayView, ArrayView3, OwnedRepr};
+use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
-use rand_xoshiro::Xoshiro256PlusPlus;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Parser)]
@@ -113,21 +113,19 @@ fn main() -> ImageResult<()> {
         |samples: usize, mean: f32, variance: f32| -> DefConv2InternalOffsets {
             // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
             DefConv2InternalOffsets::new(
-                Array::from_iter(
+                Array1::from_iter(
                     Normal::new(mean / samples as f32, variance / samples as f32)
                         .unwrap()
                         .sample_iter(&mut prng_defconv)
                         .take(samples),
-                )
-                .into_shape(samples)
-                .unwrap(),
-                Array::from_iter(
+                ),
+                Array1::from_iter(
                     Normal::new(0.0, 5.0)
                         .unwrap()
                         .sample_iter(&mut prng_defconv)
                         .take(2 * samples),
                 )
-                .into_shape((samples, 2))
+                .into_shape_with_order((samples, 2))
                 .unwrap(),
                 [defconv_total_strides, defconv_total_strides],
             )
@@ -150,13 +148,13 @@ fn main() -> ImageResult<()> {
     let mut random_2nfilter = |mean: f32, variance: f32| -> Conv2n<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
         Conv2n::new(
-            Array::from_iter(
+            Array1::from_iter(
                 Normal::new(mean / filter_area as f32, variance / filter_area as f32)
                     .unwrap()
                     .sample_iter(&mut prng_2nfilter)
                     .take(filter_volume),
             )
-            .into_shape((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
+            .into_shape_with_order((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
             .unwrap(),
         )
     };
@@ -164,13 +162,13 @@ fn main() -> ImageResult<()> {
     let mut random_3filter = |mean: f32, variance: f32| -> Conv3<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the volume of the filter.
         Conv3::new(
-            Array::from_iter(
+            Array1::from_iter(
                 Normal::new(mean / filter_volume as f32, variance / filter_volume as f32)
                     .unwrap()
                     .sample_iter(&mut prng_3filter)
                     .take(filter_volume),
             )
-            .into_shape((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
+            .into_shape_with_order((filter_depth, filter_radius * 2 + 1, filter_radius * 2 + 1))
             .unwrap(),
         )
     };
@@ -184,13 +182,13 @@ fn main() -> ImageResult<()> {
     let mut random_dense2 = |mean: f32, variance: f32| -> Dense2<OwnedRepr<f32>> {
         // Xavier initialize by changing the variance to be 1/N where N is the area of the filter.
         Dense2::new(
-            Array::from_iter(
+            Array1::from_iter(
                 Normal::new(mean / filter_area as f32, variance / filter_area as f32)
                     .unwrap()
                     .sample_iter(&mut prng_dense2)
                     .take(dense_volume),
             )
-            .into_shape((num_outputs, dense_line, dense_line))
+            .into_shape_with_order((num_outputs, dense_line, dense_line))
             .unwrap(),
         )
     };
@@ -349,6 +347,6 @@ fn main() -> ImageResult<()> {
     }
 }
 
-fn make_prng(seed: u64) -> Xoshiro256PlusPlus {
-    Xoshiro256PlusPlus::seed_from_u64(seed)
+fn make_prng(seed: u64) -> ChaCha20Rng {
+    ChaCha20Rng::seed_from_u64(seed)
 }

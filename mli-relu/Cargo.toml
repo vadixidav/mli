@@ -7,4 +7,4 @@ edition = "2024"
 [dependencies]
 mli = { path = "../mli", version = "0.11.0" }
 float-ord = "0.3.2"
-nalgebra = { version = "0.29.0", default-features = false }
+nalgebra = { version = "0.33.2", default-features = false }
