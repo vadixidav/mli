@@ -7,6 +7,12 @@ type D1 = ndarray::Ix1;
 #[derive(Clone, Debug)]
 pub struct ResidualBlock1<G, S>(pub G, PhantomData<S>);
 
+impl<G, S> ResidualBlock1<G, S> {
+    pub fn new(graph: G) -> Self {
+        Self(graph, PhantomData)
+    }
+}
+
 impl<G, S> Forward for ResidualBlock1<G, S>
 where
     S: Data<Elem = f32>,
