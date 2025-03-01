@@ -20,3 +20,5 @@ mod reshape3to2;
 pub use reshape3to2::*;
 mod variable;
 pub use variable::*;
+mod bias1;
+pub use bias1::*;

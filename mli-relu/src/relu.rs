@@ -9,7 +9,7 @@ fn relu(n: f32) -> f32 {
 }
 
 fn heaviside(n: f32) -> f32 {
-    (n.signum() + 1.0) * 0.5
+    if n.is_sign_positive() { 1.0 } else { 0.0 }
 }
 
 impl Forward for Relu {

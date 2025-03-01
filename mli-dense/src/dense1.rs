@@ -7,16 +7,16 @@ type D1 = ndarray::Ix1;
 type D2 = ndarray::Ix2;
 
 #[derive(Clone, Debug)]
-pub struct Dense<S>(Array2<f32>, PhantomData<S>);
+pub struct Dense1<S>(Array2<f32>, PhantomData<S>);
 
-impl<S> Dense<S> {
+impl<S> Dense1<S> {
     /// The dimensions of the filters array are `[filter, col]`.
     pub fn new(weights: Array2<f32>) -> Self {
         Self(weights, PhantomData)
     }
 }
 
-impl<S> Forward for Dense<S>
+impl<S> Forward for Dense1<S>
 where
     S: Data<Elem = f32>,
 {
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<S> Backward for Dense<S>
+impl<S> Backward for Dense1<S>
 where
     S: Data<Elem = f32>,
 {
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<S> Train for Dense<S>
+impl<S> Train for Dense1<S>
 where
     S: Data<Elem = f32>,
 {
