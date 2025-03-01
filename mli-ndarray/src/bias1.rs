@@ -9,7 +9,6 @@ type D1 = ndarray::Ix1;
 pub struct Bias1<S>(Array1<f32>, PhantomData<S>);
 
 impl<S> Bias1<S> {
-    /// The dimensions of the filters array are `[filter, col]`.
     pub fn new(biases: Array1<f32>) -> Self {
         Self(biases, PhantomData)
     }
