@@ -103,10 +103,10 @@ impl DefConv2 {
 
 impl Forward for DefConv2 {
     type Input = (Array2<f32>, Array2<f32>);
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = Array2<f32>;
 
-    fn forward(&self, (features, offsets): &Self::Input) -> ((), Self::Output) {
+    fn forward(&self, (features, offsets): &Self::Input) -> (EmptyData, Self::Output) {
         let input = DefConvData { features, offsets };
         assert_eq!(self.weights.len(), input.offsets.shape()[0]);
         // Get shapes.
@@ -121,7 +121,7 @@ impl Forward for DefConv2 {
 
         // Compute bilinear interpolation for (y, x) pairs.
         (
-            (),
+            EmptyData,
             Array::from_shape_vec(
                 outshape,
                 (0..outshape[0])
@@ -249,10 +249,10 @@ impl DefConv2InternalOffsets {
 
 impl Forward for DefConv2InternalOffsets {
     type Input = Array2<f32>;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = Array2<f32>;
 
-    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+    fn forward(&self, input: &Self::Input) -> (EmptyData, Self::Output) {
         self.def_conv
             .forward(&(input.clone(), self.offsets.0.clone()))
     }
@@ -269,9 +269,11 @@ impl Backward for DefConv2InternalOffsets {
         _: &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        let ((input_delta, offset_delta), weight_delta) =
-            self.def_conv
-                .backward(&(input.clone(), self.offsets.0.clone()), &(), output_delta);
+        let ((input_delta, offset_delta), weight_delta) = self.def_conv.backward(
+            &(input.clone(), self.offsets.0.clone()),
+            &EmptyData,
+            output_delta,
+        );
         (input_delta, ChainData(weight_delta, Ndeep(offset_delta)))
     }
 }

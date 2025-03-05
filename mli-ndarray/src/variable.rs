@@ -1,5 +1,5 @@
 use crate::Ndeep;
-use mli::{Backward, Forward, Train};
+use mli::{Backward, EmptyData, Forward, Train};
 use ndarray::{Array, Dimension, OwnedRepr};
 use std::ops::AddAssign;
 
@@ -12,12 +12,12 @@ where
     T: Clone,
     D: Clone,
 {
-    type Input = ();
-    type Internal = ();
+    type Input = EmptyData;
+    type Internal = EmptyData;
     type Output = Array<T, D>;
 
-    fn forward(&self, (): &Self::Input) -> ((), Self::Output) {
-        ((), self.0.clone())
+    fn forward(&self, _: &Self::Input) -> (EmptyData, Self::Output) {
+        (EmptyData, self.0.clone())
     }
 }
 
@@ -27,16 +27,16 @@ where
     D: Clone,
 {
     type OutputDelta = Array<T, D>;
-    type InputDelta = ();
+    type InputDelta = EmptyData;
     type TrainDelta = Ndeep<OwnedRepr<T>, D>;
 
     fn backward(
         &self,
-        (): &Self::Input,
-        (): &Self::Internal,
+        _: &Self::Input,
+        _: &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        ((), Ndeep(output_delta.clone()))
+        (EmptyData, Ndeep(output_delta.clone()))
     }
 }
 

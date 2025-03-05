@@ -14,11 +14,11 @@ pub struct Logistic;
 
 impl Forward for Logistic {
     type Input = f32;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = f32;
 
-    fn forward(&self, &input: &f32) -> ((), f32) {
-        ((), logistic(input))
+    fn forward(&self, &input: &f32) -> (EmptyData, f32) {
+        (EmptyData, logistic(input))
     }
 }
 
@@ -30,7 +30,7 @@ impl Backward for Logistic {
     fn backward(
         &self,
         &input: &f32,
-        _: &(),
+        _: &EmptyData,
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         (logistic_derivative(input) * output_delta, 0.0)

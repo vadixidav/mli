@@ -1,7 +1,7 @@
 use crate::convolve2;
 use mli::*;
 use mli_ndarray::Ndeep;
-use ndarray::{s, Array, Array2, ArrayBase, Data, OwnedRepr};
+use ndarray::{Array, Array2, ArrayBase, Data, OwnedRepr, s};
 use std::marker::PhantomData;
 
 type D = ndarray::Ix2;
@@ -20,12 +20,12 @@ where
     S: Data<Elem = f32>,
 {
     type Input = ArrayBase<S, D>;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = Array2<f32>;
 
-    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+    fn forward(&self, input: &Self::Input) -> (EmptyData, Self::Output) {
         let Self(filter, _) = self;
-        ((), convolve2(input.view(), filter.view()))
+        (EmptyData, convolve2(input.view(), filter.view()))
     }
 }
 

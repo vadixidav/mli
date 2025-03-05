@@ -31,11 +31,11 @@ where
     S::Elem: Clone,
 {
     type Input = ArrayBase<S, D3>;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = Array2<S::Elem>;
 
-    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
-        ((), input.to_owned().index_axis_move(Axis(0), 0))
+    fn forward(&self, input: &Self::Input) -> (EmptyData, Self::Output) {
+        (EmptyData, input.to_owned().index_axis_move(Axis(0), 0))
     }
 }
 

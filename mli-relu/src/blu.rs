@@ -33,11 +33,11 @@ fn dblu_db(a: f32, x: f32) -> f32 {
 
 impl Forward for Blu {
     type Input = f32;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = f32;
 
-    fn forward(&self, &input: &f32) -> ((), f32) {
-        ((), blu(self.alpha, self.beta, input))
+    fn forward(&self, &input: &f32) -> (EmptyData, f32) {
+        (EmptyData, blu(self.alpha, self.beta, input))
     }
 }
 
@@ -49,7 +49,7 @@ impl Backward for Blu {
     fn backward(
         &self,
         &input: &f32,
-        _: &(),
+        _: &EmptyData,
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         (

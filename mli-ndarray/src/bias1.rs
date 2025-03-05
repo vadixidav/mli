@@ -19,10 +19,10 @@ where
     S: Data<Elem = f32>,
 {
     type Input = ArrayBase<S, D1>;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = Array1<f32>;
 
-    fn forward(&self, input: &Self::Input) -> ((), Self::Output) {
+    fn forward(&self, input: &Self::Input) -> (EmptyData, Self::Output) {
         let Self(biases, _) = self;
         assert_eq!(
             input.shape(),
@@ -30,7 +30,7 @@ where
             "input shape does not match biases"
         );
 
-        ((), biases.clone() + input)
+        (EmptyData, biases.clone() + input)
     }
 }
 
