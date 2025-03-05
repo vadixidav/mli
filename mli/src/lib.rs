@@ -72,6 +72,8 @@ mod chain_data;
 pub use chain_data::*;
 mod zip;
 pub use zip::*;
+mod empty_data;
+pub use empty_data::*;
 
 pub trait Graph: Train + Sized {
     fn map<U>(self, other: U) -> Map<Self, U> {

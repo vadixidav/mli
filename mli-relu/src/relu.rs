@@ -14,11 +14,11 @@ fn heaviside(n: f32) -> f32 {
 
 impl Forward for Relu {
     type Input = f32;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = f32;
 
-    fn forward(&self, &input: &f32) -> ((), f32) {
-        ((), relu(input))
+    fn forward(&self, &input: &f32) -> (EmptyData, f32) {
+        (EmptyData, relu(input))
     }
 }
 
@@ -30,7 +30,7 @@ impl Backward for Relu {
     fn backward(
         &self,
         &input: &f32,
-        _: &(),
+        _: &EmptyData,
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         (heaviside(input) * output_delta, ())

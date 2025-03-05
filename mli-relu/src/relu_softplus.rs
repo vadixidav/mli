@@ -7,10 +7,10 @@ pub struct ReluSoftplus;
 
 impl Forward for ReluSoftplus {
     type Input = f32;
-    type Internal = ();
+    type Internal = EmptyData;
     type Output = f32;
 
-    fn forward(&self, input: &f32) -> ((), f32) {
+    fn forward(&self, input: &f32) -> (EmptyData, f32) {
         Relu.forward(input)
     }
 }
@@ -23,7 +23,7 @@ impl Backward for ReluSoftplus {
     fn backward(
         &self,
         input: &f32,
-        _: &(),
+        _: &EmptyData,
         output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
         Softplus.backward(input, &(), output_delta)
