@@ -18,7 +18,7 @@ impl Forward for ReluSoftplus {
 impl Backward for ReluSoftplus {
     type OutputDelta = f32;
     type InputDelta = f32;
-    type TrainDelta = ();
+    type TrainDelta = EmptyData;
 
     fn backward(
         &self,
@@ -26,7 +26,7 @@ impl Backward for ReluSoftplus {
         _: &EmptyData,
         output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        Softplus.backward(input, &(), output_delta)
+        Softplus.backward(input, &EmptyData, output_delta)
     }
 }
 

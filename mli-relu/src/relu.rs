@@ -25,7 +25,7 @@ impl Forward for Relu {
 impl Backward for Relu {
     type OutputDelta = f32;
     type InputDelta = f32;
-    type TrainDelta = ();
+    type TrainDelta = EmptyData;
 
     fn backward(
         &self,
@@ -33,7 +33,7 @@ impl Backward for Relu {
         _: &EmptyData,
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        (heaviside(input) * output_delta, ())
+        (heaviside(input) * output_delta, EmptyData)
     }
 }
 
