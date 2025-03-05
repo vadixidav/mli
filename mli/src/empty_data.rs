@@ -1,9 +1,8 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use num_traits::{One, Zero};
 
-/// `ChainData` derives several traits and attempts to allow chaining the IntoIterator
-/// implementation over `&` and `&mut` to allow access to the data within.
-/// This is critical to allow optimizers to perform per-weight gradient update rules.
+/// `EmptyData` allows arithmetic operations on it despite containing nothing.
+/// It pretends to be a number for deep learning purposes.
 #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EmptyData;
 
