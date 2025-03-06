@@ -94,10 +94,24 @@ where
     }
 }
 
-impl<S, D: Dimension> Add<S::Elem> for Ndeep<S, D>
+impl<S, D: Dimension> Add for Ndeep<S, D>
 where
     S: DataMut,
     S::Elem: AddAssign + Copy,
+{
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self {
+        for (n, m) in self.0.iter_mut().zip(rhs.0.iter()) {
+            *n += *m;
+        }
+        self
+    }
+}
+
+impl<S, D: Dimension> Add<f32> for Ndeep<S, D>
+where
+    S: DataMut<Elem = f32>,
 {
     type Output = Self;
 
@@ -109,10 +123,38 @@ where
     }
 }
 
-impl<S, D: Dimension> Mul<S::Elem> for Ndeep<S, D>
+impl<S, D: Dimension> Add<f64> for Ndeep<S, D>
+where
+    S: DataMut<Elem = f64>,
+{
+    type Output = Self;
+
+    fn add(mut self, rhs: S::Elem) -> Self {
+        for n in self.0.iter_mut() {
+            *n += rhs;
+        }
+        self
+    }
+}
+
+impl<S, D: Dimension> Mul for Ndeep<S, D>
 where
     S: DataMut,
     S::Elem: MulAssign + Copy,
+{
+    type Output = Self;
+
+    fn mul(mut self, rhs: Self) -> Self {
+        for (n, m) in self.0.iter_mut().zip(rhs.0.iter()) {
+            *n *= *m;
+        }
+        self
+    }
+}
+
+impl<S, D: Dimension> Mul<f32> for Ndeep<S, D>
+where
+    S: DataMut<Elem = f32>,
 {
     type Output = Self;
 
