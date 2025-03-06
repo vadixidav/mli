@@ -24,3 +24,5 @@ mod bias1;
 pub use bias1::*;
 mod residual_block1;
 pub use residual_block1::*;
+mod layernorm;
+pub use layernorm::*;
