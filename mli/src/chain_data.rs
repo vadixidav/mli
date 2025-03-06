@@ -1,4 +1,7 @@
-use core::ops::{Add, AddAssign, Mul, MulAssign};
+use core::{
+    iter::{Product, Sum},
+    ops::{Add, AddAssign, Mul, MulAssign},
+};
 use num_traits::{One, Zero};
 
 /// `ChainData` derives several traits and attempts to allow chaining the IntoIterator
@@ -102,6 +105,30 @@ where
     }
 }
 
+impl<A, B> Mul<f32> for ChainData<A, B>
+where
+    A: Mul<f32>,
+    B: Mul<f32>,
+{
+    type Output = ChainData<A::Output, B::Output>;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        ChainData(self.0 * rhs, self.1 * rhs)
+    }
+}
+
+impl<A, B> Mul<f64> for ChainData<A, B>
+where
+    A: Mul<f64>,
+    B: Mul<f64>,
+{
+    type Output = ChainData<A::Output, B::Output>;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        ChainData(self.0 * rhs, self.1 * rhs)
+    }
+}
+
 impl<A, B> MulAssign for ChainData<A, B>
 where
     A: MulAssign,
@@ -142,5 +169,25 @@ where
 {
     fn one() -> Self {
         Self(A::one(), B::one())
+    }
+}
+
+impl<A, B> Sum for ChainData<A, B>
+where
+    A: Zero + Add,
+    B: Zero + Add,
+{
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(ChainData::zero(), |a, b| a + b)
+    }
+}
+
+impl<A, B> Product for ChainData<A, B>
+where
+    A: One + Mul,
+    B: One + Mul,
+{
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(ChainData::one(), |a, b| a * b)
     }
 }
