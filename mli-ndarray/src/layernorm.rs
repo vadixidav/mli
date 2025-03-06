@@ -9,6 +9,7 @@ use std::{iter::Sum, marker::PhantomData};
 /// to input features to distribute the gradients more evenly, but ultimately allows the model to recover
 /// the magnitude and apply a single bias. Since the single magnitude and bias receive gradients from all the
 /// features instead of just one, they remain stable.
+#[derive(Clone, Debug)]
 pub struct LayerNorm<S: Data, D> {
     pub gamma: S::Elem,
     pub beta: S::Elem,
