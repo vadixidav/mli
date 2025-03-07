@@ -81,8 +81,8 @@ where
 
 impl<A, B> Zero for ChainData<A, B>
 where
-    A: Zero + Add,
-    B: Zero + Add,
+    A: Zero,
+    B: Zero,
 {
     fn zero() -> Self {
         Self(A::zero(), B::zero())
@@ -164,8 +164,8 @@ where
 
 impl<A, B> One for ChainData<A, B>
 where
-    A: One + Mul,
-    B: One + Mul,
+    A: One,
+    B: One,
 {
     fn one() -> Self {
         Self(A::one(), B::one())
