@@ -54,17 +54,18 @@ where
 {
     type Input = ArrayBase<S, D>;
     /// The internal value is the normalized input tensor.
-    type Internal = (Array<S::Elem, D>, S::Elem);
+    type Internal = Array<S::Elem, D>;
     type Output = Array<S::Elem, D>;
 
     fn forward(&self, input: &Self::Input) -> (Self::Internal, Self::Output) {
-        let float_epsilon = <S::Elem as NumCast>::from(1e-6).unwrap();
+        let float_epsilon = <S::Elem as NumCast>::from(1e-5).unwrap();
         let float_len = <S::Elem as NumCast>::from(input.len()).unwrap();
-        let norm_squared = input.iter().map(|&v| v * v).sum::<S::Elem>() / float_len;
-        let norm = (norm_squared + float_epsilon).sqrt();
-        let normalized = input.mapv(|v| v / norm);
+        let variance = input.iter().map(|&v| v * v).sum::<S::Elem>() / float_len;
+        let mean = input.iter().copied().sum::<S::Elem>() / float_len;
+        let recip_std = (variance + float_epsilon).sqrt().recip();
+        let normalized = input.mapv(|v| (v - mean) * recip_std);
         let output = normalized.mapv(|v| v * self.gamma + self.beta);
-        ((normalized, norm), output)
+        (normalized, output)
     }
 }
 
@@ -82,8 +83,9 @@ where
         internal: &Self::Internal,
         output_delta: &Self::OutputDelta,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        let gamma_delta = internal
-            .0
+        let norms = internal;
+
+        let gamma_delta = norms
             .iter()
             .zip(output_delta.iter())
             .map(|(&v, &d)| v * d)
@@ -93,21 +95,19 @@ where
 
         let float_len = <S::Elem as NumCast>::from(output_delta.len()).unwrap();
 
-        let mean_norm_delta = self.gamma * beta_delta / float_len;
+        let norm_deltas = output_delta.mapv(|v| self.gamma * v);
 
-        let norm_term_delta = self.gamma
-            * output_delta
-                .iter()
-                .zip(internal.0.iter())
-                .map(|(&v, &n)| v * n)
-                .sum()
+        let mean_norm_delta = norm_deltas.iter().copied().sum::<S::Elem>() / float_len;
+        let mean_norm_norm_delta = norms
+            .iter()
+            .zip(norm_deltas.iter())
+            .map(|(&n, &nd)| n * nd)
+            .sum::<S::Elem>()
             / float_len;
 
-        let input_delta = Zip::from(&internal.0)
-            .and(output_delta)
-            .map_collect(|&n, &od| {
-                self.gamma / internal.1 * (self.gamma * od - mean_norm_delta - n * norm_term_delta)
-            });
+        let input_delta = Zip::from(norms)
+            .and(&norm_deltas)
+            .map_collect(|&n, &nd| nd - mean_norm_delta - n * mean_norm_norm_delta);
 
         (input_delta, ChainData(gamma_delta, beta_delta))
     }
