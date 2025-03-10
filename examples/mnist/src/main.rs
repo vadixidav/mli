@@ -4,7 +4,7 @@ use mli::{Backward, Forward, Graph, Train};
 use mli_conv::{Conv2n, Conv3};
 use mli_defconv::DefConv2InternalOffsets;
 use mli_dense::Dense2;
-use mli_ndarray::{Map1One, Map2One, Map3One, Reshape3to2};
+use mli_ndarray::{MapOne, Reshape3to2};
 use mli_relu::Blu;
 use mli_sigmoid::Logistic;
 use mnist::{Mnist, MnistBuilder};
@@ -195,12 +195,12 @@ fn main() -> ImageResult<()> {
     let mut generate_filter = || {
         random_defconv(10, 1.0, 0.5)
             .map(random_2nfilter(0.0, 4.0))
-            .map(Map3One(random_blu(0.0, 0.5)))
+            .map(MapOne::new(random_blu(0.0, 0.5)))
             .map(random_3filter(0.0, 4.0))
             .map(Reshape3to2::new())
-            .map(Map2One(random_blu(0.0, 0.5)))
+            .map(MapOne::new(random_blu(0.0, 0.5)))
             .map(random_dense2(0.0, 4.0))
-            .map(Map1One(Logistic))
+            .map(MapOne::new(Logistic))
     };
 
     //////////////
