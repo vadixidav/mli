@@ -1,14 +1,13 @@
 use mli::{Backward, Forward, Train};
 use ndarray::{Array, Dimension, azip};
 use num_traits::Zero;
-use std::marker::PhantomData;
 
 #[derive(Clone, Debug)]
-pub struct MapMany<G, D: Dimension>(pub Array<G, D>, PhantomData<D>);
+pub struct MapMany<G, D: Dimension>(pub Array<G, D>);
 
 impl<G, D: Dimension> MapMany<G, D> {
     pub fn new(gs: Array<G, D>) -> Self {
-        Self(gs, PhantomData)
+        Self(gs)
     }
 }
 
