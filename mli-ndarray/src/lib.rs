@@ -1,3 +1,5 @@
+mod weight;
+pub use weight::*;
 mod map_many;
 pub use map_many::*;
 mod map_static;
