@@ -71,6 +71,7 @@ pub use map::*;
 mod chain_data;
 pub use chain_data::*;
 mod zip;
+use num_traits::Float;
 pub use zip::*;
 mod empty_data;
 pub use empty_data::*;
@@ -316,4 +317,9 @@ where
     ) -> Self::InputDelta {
         T::propogate(self, input, internal, output_delta)
     }
+}
+
+/// This trait is implemented on types that are composed to form gradients and tensors.
+pub trait Deep<F: Float> {
+    fn map(&mut self, f: impl Fn(F) -> F);
 }

@@ -2,13 +2,27 @@ use core::{
     iter::{Product, Sum},
     ops::{Add, AddAssign, Mul, MulAssign},
 };
-use num_traits::{One, Zero};
+use num_traits::{Float, One, Zero};
+
+use crate::Deep;
 
 /// `ChainData` derives several traits and attempts to allow chaining the IntoIterator
 /// implementation over `&` and `&mut` to allow access to the data within.
 /// This is critical to allow optimizers to perform per-weight gradient update rules.
 #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainData<A, B>(pub A, pub B);
+
+impl<A, B, F: Float> Deep<F> for ChainData<A, B>
+where
+    F: Float,
+    A: Deep<F>,
+    B: Deep<F>,
+{
+    fn map(&mut self, f: impl Fn(F) -> F) {
+        self.0.map(&f);
+        self.1.map(&f);
+    }
+}
 
 impl<A, B> Add for ChainData<A, B>
 where

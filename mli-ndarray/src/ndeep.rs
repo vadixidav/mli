@@ -1,4 +1,6 @@
+use mli::Deep;
 use ndarray::{ArrayBase, Data, DataMut, Dimension, RawData, RawDataClone};
+use num_traits::Float;
 use std::fmt::{self, Debug};
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 
@@ -6,6 +8,15 @@ use std::ops::{Add, AddAssign, Mul, MulAssign};
 /// for all operations. This is important because [`mli::Backward::TrainDelta`] needs to support
 /// element-wise operations for different optimizers other than standard gradient descent to work.
 pub struct Ndeep<S: Data, D>(pub ArrayBase<S, D>);
+
+impl<S: DataMut, D: Dimension> Deep<S::Elem> for Ndeep<S, D>
+where
+    S::Elem: Clone + Float,
+{
+    fn map(&mut self, f: impl Fn(S::Elem) -> S::Elem) {
+        self.0.mapv_inplace(f);
+    }
+}
 
 impl<S, D: Dimension + Clone> Clone for Ndeep<S, D>
 where

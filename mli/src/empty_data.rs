@@ -1,10 +1,16 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign};
-use num_traits::{One, Zero};
+use num_traits::{Float, One, Zero};
+
+use crate::Deep;
 
 /// `EmptyData` allows arithmetic operations on it despite containing nothing.
 /// It pretends to be a number for deep learning purposes.
 #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EmptyData;
+
+impl<F: Float> Deep<F> for EmptyData {
+    fn map(&mut self, _f: impl Fn(F) -> F) {}
+}
 
 impl Add for EmptyData {
     type Output = EmptyData;
