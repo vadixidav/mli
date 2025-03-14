@@ -5,8 +5,8 @@ fn logistic(n: f32) -> f32 {
 }
 
 fn logistic_derivative(n: f32) -> f32 {
-    let en = n.exp();
-    en * (1.0 + en).powi(-2)
+    let en = logistic(n);
+    en * (1.0 - en)
 }
 
 #[derive(Copy, Clone, Debug)]
