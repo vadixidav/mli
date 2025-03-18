@@ -24,10 +24,7 @@ impl Backward for Abs {
         _: &EmptyData,
         &output_delta: &f32,
     ) -> (Self::InputDelta, Self::TrainDelta) {
-        (
-            if input.is_sign_positive() { 1.0 } else { -1.0 } * output_delta,
-            EmptyData,
-        )
+        (input.signum() * output_delta, EmptyData)
     }
 }
 
